@@ -192,9 +192,10 @@ export default function DashboardPage() {
               <div className="text-sm font-semibold text-white">{user?.name}</div>
               <div className="text-xs text-zinc-500">{user?.email}</div>
             </div>
-            {/* Audit Export — plain link, Content-Disposition header does the download */}
+            {/* Audit Export — download attr forces correct filename on all browsers incl. Safari */}
             <a
               href="/api/audit/export"
+              download={`settleup-audit-${new Date().toISOString().split("T")[0]}.json`}
               className="flex items-center gap-1.5 py-2 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 text-xs font-semibold transition"
               title="Export Audit Snapshot"
             >
@@ -446,6 +447,7 @@ export default function DashboardPage() {
                   </p>
                   <a
                     href="/api/audit/export"
+                    download={`settleup-audit-${new Date().toISOString().split("T")[0]}.json`}
                     className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600 hover:border-purple-500 text-purple-300 hover:text-white rounded-lg text-xs font-semibold transition"
                   >
                     <Download className="h-3.5 w-3.5" />
