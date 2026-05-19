@@ -13,7 +13,11 @@ import {
   ChevronRight,
   FolderPlus,
   HelpCircle,
-  FileText
+  FileText,
+  Download,
+  Upload,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 
 interface GroupSummary {
@@ -46,6 +50,11 @@ export default function DashboardPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState("");
   const [createSuccess, setCreateSuccess] = useState(false);
+
+  // Audit export/import states
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -129,7 +138,61 @@ export default function DashboardPage() {
     }
   };
 
+  // Download a full JSON audit snapshot
+  const handleExportAudit = async () => {
+    setExportLoading(true);
+    try {
+      const res = await fetch("/api/audit/export");
+      if (!res.ok) throw new Error("Export failed.");
+      const snapshot = await res.json();
+
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `settleup-audit-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message || "Failed to export audit.");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // Restore from a JSON audit file
+  const handleImportAudit = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const snapshot = JSON.parse(text);
+      const res = await fetch("/api/audit/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshot),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed.");
+      setImportResult({
+        success: true,
+        message: `Imported: ${data.imported.groups} groups, ${data.imported.expenses} expenses, ${data.imported.settlements} settlements.`,
+      });
+      await fetchDashboardData();
+    } catch (err: any) {
+      setImportResult({ success: false, message: err.message || "Failed to import audit file." });
+    } finally {
+      setImportLoading(false);
+      e.target.value = "";
+    }
+  };
+
   // Calculate dynamic summary stats
+
   const totalOwedMe = groups
     .filter((g) => g.userNetBalance > 0)
     .reduce((sum, g) => sum + g.userNetBalance, 0);
@@ -149,11 +212,25 @@ export default function DashboardPage() {
             <span className="gradient-text">PayPaySplit</span>
           </Link>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-semibold text-white">{user?.name}</div>
               <div className="text-xs text-zinc-500">{user?.email}</div>
             </div>
+            {/* Audit Export */}
+            <button
+              onClick={handleExportAudit}
+              disabled={exportLoading}
+              className="flex items-center gap-1.5 py-2 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+              title="Export Audit Snapshot"
+            >
+              {exportLoading ? (
+                <div className="h-3.5 w-3.5 border-2 border-zinc-500/30 border-t-zinc-400 rounded-full animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">Export Audit</span>
+            </button>
             <button
               onClick={handleLogout}
               className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
@@ -385,6 +462,74 @@ export default function DashboardPage() {
                       )}
                     </button>
                   </form>
+                </div>
+
+                {/* Audit Export Card */}
+                <div className="glass-card rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute inset-0 opacity-5 bg-gradient-to-br from-purple-500 to-blue-500 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
+                    <FileText className="h-4 w-4 text-purple-400" />
+                    Audit Snapshot
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 mb-4 leading-relaxed">
+                    Export a complete JSON record of all your groups, expenses, settlements, and members. Use it to migrate, backup, or recreate the full state on a fresh database.
+                  </p>
+                  <button
+                    onClick={handleExportAudit}
+                    disabled={exportLoading}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600 hover:border-purple-500 text-purple-300 hover:text-white rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                  >
+                    {exportLoading ? (
+                      <div className="h-3.5 w-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                    Download Audit JSON
+                  </button>
+
+                  {/* Divider */}
+                  <div className="border-t border-white/5 my-4" />
+
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
+                    <Upload className="h-4 w-4 text-blue-400" />
+                    Restore from Audit
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 mb-3 leading-relaxed">
+                    Upload a previously exported JSON file to idempotently recreate all data on this instance.
+                  </p>
+
+                  {importResult && (
+                    <div className={`mb-3 p-2.5 rounded-lg text-[11px] flex items-start gap-2 ${
+                      importResult.success
+                        ? "bg-emerald-500/10 border border-emerald-500/25 text-emerald-400"
+                        : "bg-red-500/10 border border-red-500/25 text-red-400"
+                    }`}>
+                      {importResult.success
+                        ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        : <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+                      <span>{importResult.message}</span>
+                    </div>
+                  )}
+
+                  <label className={`w-full flex items-center justify-center gap-1.5 py-2 px-4 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                    importLoading
+                      ? "bg-zinc-900 border-zinc-800 text-zinc-500 opacity-50 pointer-events-none"
+                      : "bg-blue-600/15 border-blue-500/25 hover:bg-blue-600 hover:border-blue-500 text-blue-300 hover:text-white"
+                  }`}>
+                    {importLoading ? (
+                      <div className="h-3.5 w-3.5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    {importLoading ? "Importing..." : "Upload Audit JSON"}
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={handleImportAudit}
+                      disabled={importLoading}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
             </div>
