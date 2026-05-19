@@ -153,8 +153,13 @@ export default function DashboardPage() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `settleup-audit-${new Date().toISOString().split("T")[0]}.json`;
+      // Must be appended to the DOM for the download attribute to be
+      // respected by all browsers (otherwise some ignore the filename/type)
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      // Delay revocation so the browser has time to begin the download
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: any) {
       setError(err.message || "Failed to export audit.");
     } finally {
