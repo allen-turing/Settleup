@@ -51,8 +51,7 @@ export default function DashboardPage() {
   const [createError, setCreateError] = useState("");
   const [createSuccess, setCreateSuccess] = useState(false);
 
-  // Audit export/import states
-  const [exportLoading, setExportLoading] = useState(false);
+  // Audit import states (export is a plain link — no state needed)
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -138,13 +137,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Download a full JSON audit snapshot
-  const handleExportAudit = () => {
-    // The API sets Content-Disposition: attachment with the correct filename,
-    // so navigating directly to it triggers a native browser file download.
-    window.location.href = "/api/audit/export";
-  };
-
   // Restore from a JSON audit file
   const handleImportAudit = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -200,20 +192,15 @@ export default function DashboardPage() {
               <div className="text-sm font-semibold text-white">{user?.name}</div>
               <div className="text-xs text-zinc-500">{user?.email}</div>
             </div>
-            {/* Audit Export */}
-            <button
-              onClick={handleExportAudit}
-              disabled={exportLoading}
-              className="flex items-center gap-1.5 py-2 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+            {/* Audit Export — plain link, Content-Disposition header does the download */}
+            <a
+              href="/api/audit/export"
+              className="flex items-center gap-1.5 py-2 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 text-xs font-semibold transition"
               title="Export Audit Snapshot"
             >
-              {exportLoading ? (
-                <div className="h-3.5 w-3.5 border-2 border-zinc-500/30 border-t-zinc-400 rounded-full animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
+              <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Export Audit</span>
-            </button>
+            </a>
             <button
               onClick={handleLogout}
               className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
@@ -457,18 +444,13 @@ export default function DashboardPage() {
                   <p className="text-[11px] text-zinc-500 mb-4 leading-relaxed">
                     Export a complete JSON record of all your groups, expenses, settlements, and members. Use it to migrate, backup, or recreate the full state on a fresh database.
                   </p>
-                  <button
-                    onClick={handleExportAudit}
-                    disabled={exportLoading}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600 hover:border-purple-500 text-purple-300 hover:text-white rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                  <a
+                    href="/api/audit/export"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600 hover:border-purple-500 text-purple-300 hover:text-white rounded-lg text-xs font-semibold transition"
                   >
-                    {exportLoading ? (
-                      <div className="h-3.5 w-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5" />
-                    )}
+                    <Download className="h-3.5 w-3.5" />
                     Download Audit JSON
-                  </button>
+                  </a>
 
                   {/* Divider */}
                   <div className="border-t border-white/5 my-4" />
