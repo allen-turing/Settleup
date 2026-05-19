@@ -159,6 +159,9 @@ export default function GroupDetailsPage() {
   const [settleLoading, setSettleLoading] = useState(false);
   const [settleError, setSettleError] = useState("");
 
+  // Inline delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchGroupDetails();
     fetchCategories();
@@ -344,8 +347,6 @@ export default function GroupDetailsPage() {
   };
 
   const handleDeleteExpense = async (expenseId: string) => {
-    if (!confirm("Are you sure you want to delete this expense?")) return;
-
     try {
       const res = await fetch(`/api/expenses/${expenseId}`, {
         method: "DELETE",
@@ -356,10 +357,12 @@ export default function GroupDetailsPage() {
         throw new Error(d.error || "Failed to delete expense.");
       }
 
+      setDeleteConfirmId(null);
       // Refresh group details
       await fetchGroupDetails();
     } catch (err: any) {
-      alert(err.message || "An error occurred.");
+      setDeleteConfirmId(null);
+      setError(err.message || "An error occurred deleting the expense.");
     }
   };
 
@@ -708,14 +711,31 @@ export default function GroupDetailsPage() {
                                       <Copy className="h-3.8 w-3.8" />
                                     </button>
 
-                                    {/* Delete Button */}
-                                    <button
-                                      onClick={() => handleDeleteExpense(e.id)}
-                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
-                                      title="Delete Expense"
-                                    >
-                                      <Trash2 className="h-3.8 w-3.8" />
-                                    </button>
+                                    {/* Delete Button — inline two-step confirmation */}
+                                    {deleteConfirmId === e.id ? (
+                                      <div className="flex items-center gap-1.5 animate-fade-in">
+                                        <button
+                                          onClick={() => handleDeleteExpense(e.id)}
+                                          className="px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                        >
+                                          Confirm
+                                        </button>
+                                        <button
+                                          onClick={() => setDeleteConfirmId(null)}
+                                          className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => setDeleteConfirmId(e.id)}
+                                        className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
+                                        title="Delete Expense"
+                                      >
+                                        <Trash2 className="h-3.8 w-3.8" />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               );
