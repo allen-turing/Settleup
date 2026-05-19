@@ -28,7 +28,8 @@ import {
   X,
   CreditCard,
   Edit2,
-  Mail
+  Mail,
+  Copy
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -302,6 +303,44 @@ export default function GroupDetailsPage() {
     } finally {
       setInviteLoading(false);
     }
+  };
+
+  const triggerDuplicateExpense = (e: any) => {
+    setExpTitle(`${e.title} (Copy)`);
+    setExpDesc(e.description || "");
+    setExpAmount(parseFloat(e.totalAmount).toString());
+    setExpPayer(e.paidById);
+    setExpCategory(e.category?.id || "");
+    setExpSplitType(e.splitType);
+    setExpDate(new Date(e.expenseDate).toISOString().split("T")[0]);
+
+    // Build participants status map
+    const newParticipantsMap: Record<string, { checked: boolean; value: string }> = {};
+
+    // First initialize all group members to unchecked/empty
+    members.forEach((m) => {
+      newParticipantsMap[m.userId] = { checked: false, value: "" };
+    });
+
+    // Check those that were in the original expense
+    e.participants.forEach((p: any) => {
+      let val = "";
+      if (e.splitType === "PERCENTAGE") {
+        val = p.percentage !== undefined ? p.percentage.toString() : "";
+      } else if (e.splitType === "SHARES") {
+        val = p.shares !== undefined ? p.shares.toString() : "";
+      } else if (e.splitType === "EXACT") {
+        val = p.shareAmount !== undefined ? parseFloat(p.shareAmount).toString() : "";
+      }
+      newParticipantsMap[p.userId] = {
+        checked: true,
+        value: val,
+      };
+    });
+
+    setExpParticipants(newParticipantsMap);
+    setExpError("");
+    setIsExpenseModalOpen(true);
   };
 
   const handleDeleteExpense = async (expenseId: string) => {
@@ -659,6 +698,15 @@ export default function GroupDetailsPage() {
                                         {e.splitType} Split
                                       </span>
                                     </div>
+
+                                    {/* Duplicate Button */}
+                                    <button
+                                      onClick={() => triggerDuplicateExpense(e)}
+                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-purple-400 hover:border-purple-500/20 hover:bg-purple-500/5 transition cursor-pointer"
+                                      title="Duplicate Expense"
+                                    >
+                                      <Copy className="h-3.8 w-3.8" />
+                                    </button>
 
                                     {/* Delete Button */}
                                     <button
