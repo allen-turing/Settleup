@@ -139,32 +139,10 @@ export default function DashboardPage() {
   };
 
   // Download a full JSON audit snapshot
-  const handleExportAudit = async () => {
-    setExportLoading(true);
-    try {
-      const res = await fetch("/api/audit/export");
-      if (!res.ok) throw new Error("Export failed.");
-      const snapshot = await res.json();
-
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `settleup-audit-${new Date().toISOString().split("T")[0]}.json`;
-      // Must be appended to the DOM for the download attribute to be
-      // respected by all browsers (otherwise some ignore the filename/type)
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      // Delay revocation so the browser has time to begin the download
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err: any) {
-      setError(err.message || "Failed to export audit.");
-    } finally {
-      setExportLoading(false);
-    }
+  const handleExportAudit = () => {
+    // The API sets Content-Disposition: attachment with the correct filename,
+    // so navigating directly to it triggers a native browser file download.
+    window.location.href = "/api/audit/export";
   };
 
   // Restore from a JSON audit file

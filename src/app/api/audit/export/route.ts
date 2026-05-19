@@ -180,7 +180,16 @@ export async function GET() {
       invitations,
     };
 
-    return NextResponse.json(snapshot, { status: 200 });
+    const filename = `settleup-audit-${new Date().toISOString().split("T")[0]}.json`;
+    const body = JSON.stringify(snapshot, null, 2);
+
+    return new Response(body, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+    });
   } catch (error: any) {
     console.error("Audit export error:", error);
     return NextResponse.json(
