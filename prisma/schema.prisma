@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                  String               @id @default(uuid())
+  name                String
+  email               String               @unique
+  passwordHash        String
+  createdAt           DateTime             @default(now())
+  
+  createdGroups       Group[]              @relation("GroupCreator")
+  groups              GroupMember[]
+  paidExpenses        Expense[]            @relation("ExpensePayer")
+  expenseShares       ExpenseParticipant[]
+  paidSettlements     Settlement[]         @relation("SettlementPayer")
+  receivedSettlements Settlement[]         @relation("SettlementReceiver")
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  createdBy   User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdById String
+  createdAt   DateTime      @default(now())
+  
+  members     GroupMember[]
+  expenses    Expense[]
+  settlements Settlement[]
+}
+
+model GroupMember {
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId  String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  joinedAt DateTime @default(now())
+
+  @@id([groupId, userId])
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  icon     String?
+  color    String?
+  expenses Expense[]
+}
+
+model Expense {
+  id           String               @id @default(uuid())
+  group        Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId      String
+  title        String
+  description  String?
+  totalAmount  Decimal
+  paidBy       User                 @relation("ExpensePayer", fields: [paidById], references: [id], onDelete: Cascade)
+  paidById     String
+  category     Category             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId   String
+  splitType    String // EQUAL, EXACT, PERCENTAGE, SHARES
+  expenseDate  DateTime
+  currency     String               @default("INR")
+  receiptUrl   String?
+  createdAt    DateTime             @default(now())
+  participants ExpenseParticipant[]
+}
+
+model ExpenseParticipant {
+  expense     Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId   String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  shareAmount Decimal
+  percentage  Decimal?
+  shares      Int?
+  isSettled   Boolean @default(false)
+
+  @@id([expenseId, userId])
+}
+
+model Settlement {
+  id             String   @id @default(uuid())
+  group          Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId        String
+  paidBy         User     @relation("SettlementPayer", fields: [paidById], references: [id], onDelete: Cascade)
+  paidById       String
+  paidTo         User     @relation("SettlementReceiver", fields: [paidToId], references: [id], onDelete: Cascade)
+  paidToId       String
+  amount         Decimal
+  settlementDate DateTime
+  note           String?
+  createdAt      DateTime @default(now())
+}
