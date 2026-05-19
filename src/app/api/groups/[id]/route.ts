@@ -78,6 +78,11 @@ export async function GET(
             settlementDate: "desc",
           },
         },
+        invitations: {
+          orderBy: {
+            invitedAt: "desc",
+          },
+        },
       },
     });
 
@@ -104,6 +109,7 @@ export async function GET(
           email: m.user.email,
           joinedAt: m.joinedAt,
         })),
+        invitations: group.invitations,
         expenses: group.expenses,
         settlements: group.settlements,
         balances,

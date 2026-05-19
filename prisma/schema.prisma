@@ -25,16 +25,17 @@ model User {
 }
 
 model Group {
-  id          String        @id @default(uuid())
+  id          String            @id @default(uuid())
   name        String
   description String?
-  createdBy   User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
   createdById String
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime          @default(now())
   
   members     GroupMember[]
   expenses    Expense[]
   settlements Settlement[]
+  invitations GroupInvitation[]
 }
 
 model GroupMember {
@@ -99,4 +100,14 @@ model Settlement {
   settlementDate DateTime
   note           String?
   createdAt      DateTime @default(now())
+}
+
+model GroupInvitation {
+  id        String   @id @default(uuid())
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId   String
+  email     String
+  invitedAt DateTime @default(now())
+
+  @@unique([groupId, email])
 }

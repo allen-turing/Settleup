@@ -38,7 +38,61 @@ export async function POST(
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const directAddEnabled = process.env.DIRECT_ADD_ENABLED !== "false";
 
+    if (!directAddEnabled) {
+      // 1. Check if user is already a member of the group
+      const existingUser = await prisma.user.findUnique({
+        where: { email: cleanEmail },
+        include: {
+          groups: {
+            where: { groupId },
+          },
+        },
+      });
+
+      if (existingUser && existingUser.groups.length > 0) {
+        return NextResponse.json(
+          { error: "This user is already a member of this group." },
+          { status: 400 }
+        );
+      }
+
+      // 2. Check if an invitation is already pending
+      const existingInvitation = await prisma.groupInvitation.findUnique({
+        where: {
+          groupId_email: {
+            groupId,
+            email: cleanEmail,
+          },
+        },
+      });
+
+      if (existingInvitation) {
+        return NextResponse.json(
+          { error: "An invitation is already pending for this email address." },
+          { status: 400 }
+        );
+      }
+
+      // 3. Create a pending invitation
+      const invitation = await prisma.groupInvitation.create({
+        data: {
+          groupId,
+          email: cleanEmail,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          message: "Invitation sent successfully by email.",
+          invitation: { id: invitation.id, email: invitation.email, invitedAt: invitation.invitedAt },
+        },
+        { status: 201 }
+      );
+    }
+
+    // DIRECT ADD FLOW (POC Mode - DIRECT_ADD_ENABLED = true)
     // Check if the user exists
     let targetUser = await prisma.user.findUnique({
       where: { email: cleanEmail },

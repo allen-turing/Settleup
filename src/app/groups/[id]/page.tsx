@@ -27,7 +27,8 @@ import {
   ArrowRightLeft,
   X,
   CreditCard,
-  Edit2
+  Edit2,
+  Mail
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -117,6 +118,7 @@ export default function GroupDetailsPage() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [balances, setBalances] = useState<MemberBalance[]>([]);
   const [simplifiedTxs, setSimplifiedTxs] = useState<SimplifiedTransaction[]>([]);
+  const [invitations, setInvitations] = useState<{ id: string; email: string; invitedAt: string }[]>([]);
   
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [viewTab, setViewTab] = useState<"expenses" | "analytics">("expenses");
@@ -182,6 +184,7 @@ export default function GroupDetailsPage() {
       setSettlements(data.settlements);
       setBalances(data.balances);
       setSimplifiedTxs(data.simplifiedTransactions);
+      setInvitations(data.invitations || []);
 
       // Pre-populate expense modal fields
       if (data.members.length > 0) {
@@ -856,6 +859,28 @@ export default function GroupDetailsPage() {
                     </button>
                   </form>
                 </div>
+
+                {/* Pending Invitations */}
+                {invitations.length > 0 && (
+                  <div className="glass-card rounded-2xl p-5 shadow-xl">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+                      <Mail className="h-4.5 w-4.5 text-purple-400" />
+                      Pending Invitations
+                    </h3>
+                    <div className="space-y-2">
+                      {invitations.map((inv) => (
+                        <div key={inv.id} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0">
+                          <span className="text-zinc-300 truncate pr-2" title={inv.email}>
+                            {inv.email}
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-semibold bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full shrink-0">
+                            Invited
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Simplified Settlement recommendations */}
                 <div className="glass-card rounded-2xl p-5 shadow-xl">
