@@ -125,3 +125,70 @@ export async function GET(
     );
   }
 }
+
+// PATCH /api/groups/[id] - Update group name and description
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const payload = await getCurrentUser();
+    if (!payload) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id: groupId } = await params;
+    const body = await request.json();
+    const { name, description } = body;
+
+    // Verify if the current user is a member of the group
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId,
+          userId: payload.userId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Access denied. You are not a member of this group." },
+        { status: 403 }
+      );
+    }
+
+    if (name !== undefined && !name.trim()) {
+      return NextResponse.json(
+        { error: "Group name cannot be empty." },
+        { status: 400 }
+      );
+    }
+
+    const updatedGroup = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description.trim() }),
+      },
+    });
+
+    return NextResponse.json(
+      {
+        message: "Group updated successfully.",
+        group: {
+          id: updatedGroup.id,
+          name: updatedGroup.name,
+          description: updatedGroup.description,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Update group error:", error);
+    return NextResponse.json(
+      { error: "An error occurred updating the group." },
+      { status: 500 }
+    );
+  }
+}

@@ -175,6 +175,13 @@ export default function GroupDetailsPage() {
   // Inline delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Edit Group States
+  const [isEditGroupModalOpen, setIsEditGroupModalOpen] = useState(false);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupDesc, setEditGroupDesc] = useState("");
+  const [editGroupLoading, setEditGroupLoading] = useState(false);
+  const [editGroupError, setEditGroupError] = useState("");
+
   useEffect(() => {
     fetchGroupDetails();
     fetchCategories();
@@ -660,6 +667,51 @@ export default function GroupDetailsPage() {
     }
   };
 
+  const openEditGroupModal = () => {
+    if (group) {
+      setEditGroupName(group.name);
+      setEditGroupDesc(group.description || "");
+      setEditGroupError("");
+      setIsEditGroupModalOpen(true);
+    }
+  };
+
+  const handleEditGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditGroupError("");
+    setEditGroupLoading(true);
+
+    if (!editGroupName.trim()) {
+      setEditGroupError("Group name is required.");
+      setEditGroupLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editGroupName.trim(),
+          description: editGroupDesc.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update group.");
+      }
+
+      setIsEditGroupModalOpen(false);
+      await fetchGroupDetails();
+    } catch (err: any) {
+      setEditGroupError(err.message || "An error occurred.");
+    } finally {
+      setEditGroupLoading(false);
+    }
+  };
+
   // Pre-fill settlement and open modal when clicking "Settle Up" on a debt recommendation
   const triggerQuickSettle = (fromId: string, toId: string, amount: number) => {
     setSettlePayer(fromId);
@@ -702,9 +754,20 @@ export default function GroupDetailsPage() {
               <ArrowLeft className="h-4.5 w-4.5" />
             </Link>
             <div>
-              <h1 className="text-lg font-bold text-white leading-tight truncate max-w-[200px] sm:max-w-sm">
-                {group?.name || "Loading Group..."}
-              </h1>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-lg font-bold text-white leading-tight truncate max-w-[160px] sm:max-w-sm">
+                  {group?.name || "Loading Group..."}
+                </h1>
+                {group && (
+                  <button
+                    onClick={openEditGroupModal}
+                    className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition cursor-pointer"
+                    title="Edit group details"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-zinc-500 truncate max-w-[200px] sm:max-w-sm">
                 {group?.description || "PayPaySplit expense circle"}
               </p>
@@ -1680,6 +1743,70 @@ export default function GroupDetailsPage() {
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   "Record Payment"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL 3: EDIT GROUP DETAILS MODAL */}
+      {isEditGroupModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card rounded-2xl w-full max-w-md p-6 relative animate-zoom-in">
+            <button
+              onClick={() => setIsEditGroupModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-white mb-4">Edit group details</h3>
+
+            {editGroupError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-xs text-red-400">
+                {editGroupError}
+              </div>
+            )}
+
+            <form onSubmit={handleEditGroup} className="space-y-4">
+              <div>
+                <label htmlFor="editGroupName" className="block text-xs font-semibold text-zinc-400 mb-1.5">
+                  Group Name
+                </label>
+                <input
+                  id="editGroupName"
+                  type="text"
+                  required
+                  placeholder="e.g. Flatmates, Goa Trip"
+                  value={editGroupName}
+                  onChange={(e) => setEditGroupName(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editGroupDesc" className="block text-xs font-semibold text-zinc-400 mb-1.5">
+                  Description
+                </label>
+                <textarea
+                  id="editGroupDesc"
+                  placeholder="e.g. Shared expenses for our apartment"
+                  value={editGroupDesc}
+                  onChange={(e) => setEditGroupDesc(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={editGroupLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-sm font-semibold text-white rounded-lg shadow transition cursor-pointer mt-2"
+              >
+                {editGroupLoading ? (
+                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  "Save Changes"
                 )}
               </button>
             </form>
