@@ -123,6 +123,8 @@ export default function GroupDetailsPage() {
   
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [viewTab, setViewTab] = useState<"expenses" | "analytics">("expenses");
+  const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
+  const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -644,25 +646,100 @@ export default function GroupDetailsPage() {
                   </button>
                 </div>
 
-                {viewTab === "expenses" ? (
-                  <div className="space-y-6">
-                    {/* Combine Expenses and Settlements chronologically */}
-                    {expenses.length === 0 && settlements.length === 0 ? (
+                {viewTab === "expenses" ? (() => {
+                  // Build filter derived state
+                  const _uniqueCategories = Array.from(new Map(
+                    expenses.filter((e) => e.category).map((e) => [e.category!.id, e.category!])
+                  ).values());
+                  const _filteredExpenses = expenses.filter((e) => {
+                    const mOk = !filterMemberId || e.paidById === filterMemberId || (e.participants || []).some((p: any) => p.userId === filterMemberId);
+                    const cOk = !filterCategoryId || e.category?.id === filterCategoryId;
+                    return mOk && cOk;
+                  });
+                  const _isFiltered = !!(filterMemberId || filterCategoryId);
+
+                  return (
+                  <div className="space-y-4">
+                    {/* Filter Bar */}
+                    {expenses.length > 0 && (
+                      <div className="glass-card rounded-2xl p-4 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Person</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => setFilterMemberId(null)}
+                              className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterMemberId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                              Everyone
+                            </button>
+                            {members.map((m) => (
+                              <button key={(m as any).userId}
+                                onClick={() => setFilterMemberId(filterMemberId === (m as any).userId ? null : (m as any).userId)}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterMemberId === (m as any).userId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                {(m as any).user?.name || (m as any).userId}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {_uniqueCategories.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Category</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button onClick={() => setFilterCategoryId(null)}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterCategoryId ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                All Categories
+                              </button>
+                              {_uniqueCategories.map((cat: any) => {
+                                const _M = CATEGORY_META[cat.icon] || CATEGORY_META.HelpCircle;
+                                const _CI = _M.icon;
+                                return (
+                                  <button key={cat.id}
+                                    onClick={() => setFilterCategoryId(filterCategoryId === cat.id ? null : cat.id)}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterCategoryId === cat.id ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                    <_CI className="h-3 w-3" />{cat.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {_isFiltered && (
+                          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                            <p className="text-[11px] text-zinc-500">
+                              Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
+                            </p>
+                            <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
+                              className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
+                              Clear filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Feed */}
+                    {_filteredExpenses.length === 0 && !_isFiltered && settlements.length === 0 ? (
                       <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
                         <div className="h-14 w-14 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4 animate-pulse">
                           <CreditCard className="h-7 w-7" />
                         </div>
                         <h4 className="text-white font-semibold text-base mb-1">No Activity Logged</h4>
                         <p className="text-zinc-400 text-sm max-w-sm mb-6">
-                          There are no expenses or settlement payments logged in this group. Click "Add Expense" to get started!
+                          There are no expenses or settlement payments logged in this group. Click &quot;Add Expense&quot; to get started!
                         </p>
+                      </div>
+                    ) : _filteredExpenses.length === 0 && _isFiltered ? (
+                      <div className="glass-card rounded-2xl p-10 text-center flex flex-col justify-center items-center">
+                        <p className="text-zinc-400 text-sm">No expenses match the selected filters.</p>
+                        <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
+                          className="mt-3 text-xs text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
+                          Clear filters
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         {/* Chronological list of events */}
                         {[
-                          ...expenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime() })),
-                          ...settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime() })),
+                          ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime() })),
+                          ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime() })) : []),
                         ]
                           .sort((a, b) => b.dateKey - a.dateKey)
                           .map((event) => {
@@ -767,7 +844,8 @@ export default function GroupDetailsPage() {
                       </div>
                     )}
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div className="space-y-6">
                     {/* Visual Charts using HTML/CSS */}
                     {analytics && analytics.totalSpend > 0 ? (
