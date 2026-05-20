@@ -849,17 +849,68 @@ export default function GroupDetailsPage() {
                             </div>
                           </div>
                         )}
-                        {_isFiltered && (
-                          <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                            <p className="text-[11px] text-zinc-500">
-                              Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
-                            </p>
-                            <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
-                              className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
-                              Clear filters
-                            </button>
-                          </div>
-                        )}
+                        {_isFiltered && (() => {
+                          const filterPersonName = members.find(m => m.userId === filterMemberId)?.name || "Everyone";
+                          const filterCategoryName = _uniqueCategories.find(c => c.id === filterCategoryId)?.name || "All Categories";
+                          
+                          let totalPaid = 0;
+                          let totalShare = 0;
+                          
+                          if (filterMemberId) {
+                            totalPaid = _filteredExpenses
+                              .filter(e => e.paidById === filterMemberId)
+                              .reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
+                            
+                            totalShare = _filteredExpenses.reduce((sum, e) => {
+                              const p = (e.participants || []).find((part: any) => part.userId === filterMemberId);
+                              return sum + (p ? parseFloat(p.shareAmount) : 0);
+                            }, 0);
+                          } else {
+                            totalPaid = _filteredExpenses.reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
+                          }
+
+                          return (
+                            <div className="mt-2 pt-3 border-t border-white/5 space-y-2.5">
+                              <div className="flex justify-between items-center">
+                                <p className="text-[11px] text-zinc-500">
+                                  Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
+                                </p>
+                                <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
+                                  className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
+                                  Clear filters
+                                </button>
+                              </div>
+
+                              <div className="bg-zinc-950/40 border border-white/5 rounded-xl p-3 space-y-2">
+                                <div className="text-[11px] text-zinc-400 font-semibold">
+                                  Spend Summary: <span className="text-purple-400 font-bold">{filterPersonName}</span> in <span className="text-blue-400 font-bold">{filterCategoryName}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                  {filterMemberId ? (
+                                    <>
+                                      <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
+                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Total Paid</p>
+                                        <p className="text-xs font-extrabold text-emerald-400 mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                      </div>
+                                      <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
+                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Actual Cost / Share</p>
+                                        <p className="text-xs font-extrabold text-white mt-0.5">₹{totalShare.toFixed(2)}</p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="col-span-2 bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2 flex justify-between items-center">
+                                      <div>
+                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-semibold">Total Category Spending</p>
+                                        <p className="text-xs font-extrabold text-white mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                      </div>
+                                      <span className="text-[9px] text-zinc-500 font-medium">Across all members</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
