@@ -17,7 +17,8 @@ import {
   Download,
   Upload,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  UserCircle
 } from "lucide-react";
 
 interface GroupSummary {
@@ -188,10 +189,17 @@ export default function DashboardPage() {
           </Link>
           
           <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-semibold text-white">{user?.name}</div>
-              <div className="text-xs text-zinc-500">{user?.email}</div>
-            </div>
+            <Link
+              href="/profile"
+              className="text-right hidden sm:block group"
+              title="Edit profile"
+            >
+              <div className="text-sm font-semibold text-white group-hover:text-purple-400 transition flex items-center gap-1.5 justify-end">
+                <UserCircle className="h-3.5 w-3.5 text-zinc-500 group-hover:text-purple-400 transition" />
+                {user?.name}
+              </div>
+              <div className="text-xs text-zinc-500 group-hover:text-zinc-400 transition">{user?.email}</div>
+            </Link>
             {/* Audit Export — download attr forces correct filename on all browsers incl. Safari */}
             <a
               href="/api/audit/export"

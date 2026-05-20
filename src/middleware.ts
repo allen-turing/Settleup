@@ -13,7 +13,8 @@ export async function middleware(request: NextRequest) {
   const isDashboardPage =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/groups") ||
-    pathname.startsWith("/analytics");
+    pathname.startsWith("/analytics") ||
+    pathname.startsWith("/profile");
 
   const isApi = pathname.startsWith("/api");
   const isPublicApi = pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/signup");
