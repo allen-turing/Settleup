@@ -26,6 +26,40 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
+      // If it is a placeholder account (empty passwordHash), we allow claiming it
+      if (existingUser.passwordHash === "") {
+        const passwordHash = await hashPassword(password);
+        const user = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name,
+            passwordHash,
+          },
+        });
+
+        // Generate JWT token
+        const token = await signToken({ userId: user.id, email: user.email });
+
+        // Build the response and set cookie
+        const response = NextResponse.json(
+          {
+            message: "Account activated successfully.",
+            user: { id: user.id, name: user.name, email: user.email },
+          },
+          { status: 201 }
+        );
+
+        response.cookies.set("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+          path: "/",
+        });
+
+        return response;
+      }
+
       return NextResponse.json(
         { error: "An account with this email already exists." },
         { status: 400 }
