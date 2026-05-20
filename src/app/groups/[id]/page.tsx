@@ -160,6 +160,9 @@ export default function GroupDetailsPage() {
   const [customCategoryLoading, setCustomCategoryLoading] = useState(false);
   const [customCategoryError, setCustomCategoryError] = useState("");
 
+  // Edit Expense States
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+
   // Settle Up States
   const [settlePayer, setSettlePayer] = useState("");
   const [settleReceiver, setSettleReceiver] = useState("");
@@ -331,6 +334,67 @@ export default function GroupDetailsPage() {
     } finally {
       setInviteLoading(false);
     }
+  };
+
+  const openAddExpenseModal = () => {
+    setExpTitle("");
+    setExpDesc("");
+    setExpAmount("");
+    if (members.length > 0) {
+      setExpPayer(members[0].userId);
+      const checkedMap: Record<string, { checked: boolean; value: string }> = {};
+      members.forEach((m) => {
+        checkedMap[m.userId] = { checked: true, value: "" };
+      });
+      setExpParticipants(checkedMap);
+    }
+    if (categories.length > 0) {
+      setExpCategory(categories[0].id);
+    }
+    setExpSplitType("EQUAL");
+    setExpDate(new Date().toISOString().split("T")[0]);
+    setExpError("");
+    setEditingExpenseId(null);
+    setIsExpenseModalOpen(true);
+  };
+
+  const triggerEditExpense = (e: any) => {
+    setExpTitle(e.title);
+    setExpDesc(e.description || "");
+    setExpAmount(parseFloat(e.totalAmount).toString());
+    setExpPayer(e.paidById);
+    setExpCategory(e.category?.id || "");
+    setExpSplitType(e.splitType);
+    setExpDate(new Date(e.expenseDate).toISOString().split("T")[0]);
+
+    // Build participants status map
+    const newParticipantsMap: Record<string, { checked: boolean; value: string }> = {};
+
+    // First initialize all group members to unchecked/empty
+    members.forEach((m) => {
+      newParticipantsMap[m.userId] = { checked: false, value: "" };
+    });
+
+    // Check those that were in the original expense
+    e.participants.forEach((p: any) => {
+      let val = "";
+      if (e.splitType === "PERCENTAGE") {
+        val = p.percentage !== null && p.percentage !== undefined ? p.percentage.toString() : "";
+      } else if (e.splitType === "SHARES") {
+        val = p.shares !== null && p.shares !== undefined ? p.shares.toString() : "";
+      } else if (e.splitType === "EXACT") {
+        val = p.shareAmount !== null && p.shareAmount !== undefined ? parseFloat(p.shareAmount).toString() : "";
+      }
+      newParticipantsMap[p.userId] = {
+        checked: true,
+        value: val,
+      };
+    });
+
+    setExpParticipants(newParticipantsMap);
+    setExpError("");
+    setEditingExpenseId(e.id);
+    setIsExpenseModalOpen(true);
   };
 
   const triggerDuplicateExpense = (e: any) => {
@@ -506,8 +570,10 @@ export default function GroupDetailsPage() {
     }
 
     try {
-      const response = await fetch("/api/expenses", {
-        method: "POST",
+      const url = editingExpenseId ? `/api/expenses/${editingExpenseId}` : "/api/expenses";
+      const method = editingExpenseId ? "PUT" : "POST";
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId,
@@ -525,13 +591,14 @@ export default function GroupDetailsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to log expense.");
+        throw new Error(data.error || `Failed to ${editingExpenseId ? "update" : "log"} expense.`);
       }
 
       setIsExpenseModalOpen(false);
       setExpTitle("");
       setExpDesc("");
       setExpAmount("");
+      setEditingExpenseId(null);
       
       // Refresh details
       await fetchGroupDetails();
@@ -659,7 +726,7 @@ export default function GroupDetailsPage() {
               </Link>
             )}
             <button
-              onClick={() => setIsExpenseModalOpen(true)}
+              onClick={openAddExpenseModal}
               className="flex items-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
             >
               <Plus className="h-4 w-4" />
@@ -859,6 +926,15 @@ export default function GroupDetailsPage() {
                                         {e.splitType} Split
                                       </span>
                                     </div>
+
+                                    {/* Edit Button */}
+                                    <button
+                                      onClick={() => triggerEditExpense(e)}
+                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition cursor-pointer"
+                                      title="Edit Expense"
+                                    >
+                                      <Edit2 className="h-3.8 w-3.8" />
+                                    </button>
 
                                     {/* Duplicate Button */}
                                     <button
@@ -1210,7 +1286,9 @@ export default function GroupDetailsPage() {
               <X className="h-4.5 w-4.5" />
             </button>
 
-            <h3 className="text-lg font-bold text-white mb-4">Add a shared expense</h3>
+            <h3 className="text-lg font-bold text-white mb-4">
+              {editingExpenseId ? "Edit shared expense" : "Add a shared expense"}
+            </h3>
 
             {expError && (
               <div className="mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-xs text-red-400">
@@ -1429,6 +1507,8 @@ export default function GroupDetailsPage() {
               >
                 {expLoading ? (
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : editingExpenseId ? (
+                  "Save Changes"
                 ) : (
                   "Log Expense"
                 )}
