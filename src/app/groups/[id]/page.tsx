@@ -671,10 +671,10 @@ export default function GroupDetailsPage() {
                               Everyone
                             </button>
                             {members.map((m) => (
-                              <button key={(m as any).userId}
-                                onClick={() => setFilterMemberId(filterMemberId === (m as any).userId ? null : (m as any).userId)}
-                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterMemberId === (m as any).userId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
-                                {(m as any).user?.name || (m as any).userId}
+                              <button key={m.userId}
+                                onClick={() => setFilterMemberId(filterMemberId === m.userId ? null : m.userId)}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterMemberId === m.userId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                {m.name}
                               </button>
                             ))}
                           </div>
