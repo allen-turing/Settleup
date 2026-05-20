@@ -154,6 +154,12 @@ export default function GroupDetailsPage() {
   const [expLoading, setExpLoading] = useState(false);
   const [expError, setExpError] = useState("");
 
+  // Custom Category States
+  const [isCreatingCustomCategory, setIsCreatingCustomCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [customCategoryLoading, setCustomCategoryLoading] = useState(false);
+  const [customCategoryError, setCustomCategoryError] = useState("");
+
   // Settle Up States
   const [settlePayer, setSettlePayer] = useState("");
   const [settleReceiver, setSettleReceiver] = useState("");
@@ -401,6 +407,44 @@ export default function GroupDetailsPage() {
       await fetchGroupDetails();
     } catch (err: any) {
       alert(err.message || "An error occurred.");
+    }
+  };
+
+  const handleCreateCustomCategory = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setCustomCategoryError("");
+    setCustomCategoryLoading(true);
+
+    if (!newCategoryName.trim()) {
+      setCustomCategoryError("Category name cannot be empty.");
+      setCustomCategoryLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create category.");
+      }
+
+      const newCat = data.category;
+      setCategories((prev) => {
+        if (prev.some((c) => c.id === newCat.id)) return prev;
+        return [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name));
+      });
+
+      setExpCategory(newCat.id);
+      setIsCreatingCustomCategory(false);
+      setNewCategoryName("");
+    } catch (err: any) {
+      setCustomCategoryError(err.message || "An error occurred.");
+    } finally {
+      setCustomCategoryLoading(false);
     }
   };
 
@@ -1228,21 +1272,63 @@ export default function GroupDetailsPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="expCategory" className="block text-xs font-semibold text-zinc-400 mb-1.5">
-                    Category
-                  </label>
-                  <select
-                    id="expCategory"
-                    value={expCategory}
-                    onChange={(e) => setExpCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white focus:bg-zinc-950"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id} className="bg-zinc-950">
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label htmlFor="expCategory" className="block text-xs font-semibold text-zinc-400">
+                      Category
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingCustomCategory((v) => !v);
+                        setCustomCategoryError("");
+                        setNewCategoryName("");
+                      }}
+                      className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition"
+                    >
+                      {isCreatingCustomCategory ? "Cancel" : "+ Add Custom"}
+                    </button>
+                  </div>
+
+                  {isCreatingCustomCategory ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => {
+                            setNewCategoryName(e.target.value);
+                            setCustomCategoryError("");
+                          }}
+                          placeholder="Category name (e.g. Flights)"
+                          className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 outline-none"
+                        />
+                        <button
+                          type="button"
+                          disabled={customCategoryLoading}
+                          onClick={handleCreateCustomCategory}
+                          className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-500 rounded-lg text-xs font-semibold text-white transition cursor-pointer"
+                        >
+                          {customCategoryLoading ? "..." : "Add"}
+                        </button>
+                      </div>
+                      {customCategoryError && (
+                        <p className="text-[10px] text-red-400">{customCategoryError}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      id="expCategory"
+                      value={expCategory}
+                      onChange={(e) => setExpCategory(e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white focus:bg-zinc-950"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-zinc-950">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
