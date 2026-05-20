@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ShieldCheck,
   Pencil,
+  LogOut,
 } from "lucide-react";
 
 interface UserProfile {
@@ -116,6 +117,16 @@ export default function ProfilePage() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } catch (e) {
+      console.error("Logout failed", e);
+    }
+  };
+
   const isInfoChanged = user && (name.trim() !== user.name || email.trim().toLowerCase() !== user.email);
 
   if (loading) {
@@ -144,14 +155,23 @@ export default function ProfilePage() {
               <p className="text-[11px] text-zinc-500">Manage your account details</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <ShieldCheck className="h-4 w-4 text-purple-400" />
-            <span className="hidden sm:inline">
-              Member since{" "}
-              {user?.createdAt
-                ? new Date(user.createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
-                : "—"}
-            </span>
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-purple-400" />
+              <span className="hidden sm:inline">
+                Member since{" "}
+                {user?.createdAt
+                  ? new Date(user.createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+                  : "—"}
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>

@@ -29,7 +29,9 @@ import {
   CreditCard,
   Edit2,
   Mail,
-  Copy
+  Copy,
+  LogOut,
+  UserCircle
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -112,7 +114,7 @@ export default function GroupDetailsPage() {
   const params = useParams();
   const groupId = params.id as string;
 
-  const [currentUser, setCurrentUser] = useState<{ userId: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; userId: string; name: string; email: string } | null>(null);
   const [group, setGroup] = useState<{ id: string; name: string; description: string } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -176,7 +178,12 @@ export default function GroupDetailsPage() {
       const meRes = await fetch("/api/auth/me");
       if (meRes.ok) {
         const meData = await meRes.json();
-        setCurrentUser({ userId: meData.user.id });
+        setCurrentUser({
+          id: meData.user.id,
+          userId: meData.user.id,
+          name: meData.user.name,
+          email: meData.user.email
+        });
       }
 
       const res = await fetch(`/api/groups/${groupId}`);
@@ -210,6 +217,16 @@ export default function GroupDetailsPage() {
       setError(err.message || "An error occurred fetching group.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } catch (e) {
+      console.error("Logout failed", e);
     }
   };
 
@@ -583,7 +600,20 @@ export default function GroupDetailsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {currentUser && (
+              <Link
+                href="/profile"
+                className="text-right hidden md:block group mr-1"
+                title="Edit profile"
+              >
+                <div className="text-[11px] font-semibold text-white group-hover:text-purple-400 transition flex items-center gap-1 justify-end">
+                  <UserCircle className="h-3 w-3 text-zinc-500 group-hover:text-purple-400 transition" />
+                  {currentUser.name}
+                </div>
+                <div className="text-[9px] text-zinc-500 group-hover:text-zinc-400 transition">{currentUser.email}</div>
+              </Link>
+            )}
             <button
               onClick={() => setIsExpenseModalOpen(true)}
               className="flex items-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
@@ -598,6 +628,13 @@ export default function GroupDetailsPage() {
             >
               <ArrowRightLeft className="h-4 w-4" />
               <span>Settle Up</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
