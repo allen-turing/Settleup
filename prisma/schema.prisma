@@ -15,6 +15,7 @@ model User {
   email               String               @unique
   passwordHash        String
   createdAt           DateTime             @default(now())
+  lastExpenseSeenAt   DateTime?
   
   createdGroups       Group[]              @relation("GroupCreator")
   groups              GroupMember[]
@@ -22,6 +23,7 @@ model User {
   expenseShares       ExpenseParticipant[]
   paidSettlements     Settlement[]         @relation("SettlementPayer")
   receivedSettlements Settlement[]         @relation("SettlementReceiver")
+  featureRequests     FeatureRequest[]
 }
 
 model Group {
@@ -110,4 +112,24 @@ model GroupInvitation {
   invitedAt DateTime @default(now())
 
   @@unique([groupId, email])
+}
+
+model FeatureRequest {
+  id               String   @id @default(uuid())
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId           String?
+  requesterName    String
+  requesterEmail   String
+  title            String
+  problem          String
+  expectedOutcome  String
+  workflowArea     String
+  priority         String   @default("MEDIUM")
+  status           String   @default("NEW")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([priority])
+  @@index([status])
 }

@@ -2,11 +2,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { ArrowRight, DollarSign, Users, Award, Shield, CheckCircle } from "lucide-react";
+import FeatureRequestWorkflow from "@/components/FeatureRequestWorkflow";
 
 export default async function HomePage() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
-  const user = token ? verifyToken(token) : null;
+
+  const user = token ? await verifyToken(token) : null;
   const isAuthenticated = !!user;
 
   return (
@@ -118,6 +120,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Feature Request Workflow */}
+      <FeatureRequestWorkflow defaultEmail={user?.email || ""} />
 
       {/* Footer */}
       <footer className="w-full max-w-7xl mx-auto px-6 py-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between text-xs text-zinc-500 gap-4 mt-auto">

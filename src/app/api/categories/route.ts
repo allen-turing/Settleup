@@ -2,6 +2,96 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+const ICON_PROFILES: Array<{ icon: string; corpus: string }> = [
+  { icon: "Utensils", corpus: "food dining meal restaurant cafe breakfast lunch dinner snacks beverages" },
+  { icon: "Bed", corpus: "hotel stay lodging hostel room suite accommodation rent nightly" },
+  { icon: "Fuel", corpus: "fuel petrol diesel gas transport taxi cab auto ride travel car bike" },
+  { icon: "ShoppingBag", corpus: "shopping groceries mart store market purchase buy supplies" },
+  { icon: "Ticket", corpus: "ticket booking flight train bus movie event concert pass entry" },
+  { icon: "Tv", corpus: "entertainment streaming ott music gaming game subscription media" },
+  { icon: "HelpCircle", corpus: "miscellaneous other general uncategorized random" },
+];
+
+const tokenize = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+
+const levenshteinDistance = (a: string, b: string): number => {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let i = 0; i < rows; i += 1) dp[i][0] = i;
+  for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
+};
+
+const isFuzzyTokenMatch = (inputToken: string, profileToken: string): boolean => {
+  if (inputToken === profileToken) return true;
+  if (inputToken.length < 4 || profileToken.length < 4) return false;
+
+  const distance = levenshteinDistance(inputToken, profileToken);
+  const maxLen = Math.max(inputToken.length, profileToken.length);
+  const similarity = 1 - distance / maxLen;
+  return similarity >= 0.75;
+};
+
+const inferIconFromText = (categoryName: string): string => {
+  const nameTokens = tokenize(categoryName);
+  if (nameTokens.length === 0) return "HelpCircle";
+
+  let bestIcon = "HelpCircle";
+  let bestScore = -1;
+
+  for (const profile of ICON_PROFILES) {
+    const profileText = profile.corpus.toLowerCase();
+    const profileTokens = new Set(tokenize(profile.corpus));
+    let score = 0;
+
+    for (const token of nameTokens) {
+      if (profileTokens.has(token)) {
+        score += 4;
+        continue;
+      }
+
+      if (profileText.includes(token)) {
+        score += 2;
+        continue;
+      }
+
+      // Typo-tolerant match against profile tokens.
+      for (const profileToken of profileTokens) {
+        if (isFuzzyTokenMatch(token, profileToken)) {
+          score += 2;
+          break;
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIcon = profile.icon;
+    }
+  }
+
+  return bestScore > 0 ? bestIcon : "HelpCircle";
+};
+
 // GET /api/categories - Fetch all categories for expense forms
 export async function GET() {
   try {
@@ -63,23 +153,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine a premium icon keyword based on name keywords
-    let icon = "HelpCircle";
-    const lowerName = cleanName.toLowerCase();
-    
-    if (lowerName.includes("food") || lowerName.includes("eat") || lowerName.includes("drink") || lowerName.includes("restaurant") || lowerName.includes("cafe")) {
-      icon = "Utensils";
-    } else if (lowerName.includes("hotel") || lowerName.includes("stay") || lowerName.includes("room") || lowerName.includes("rent") || lowerName.includes("bed")) {
-      icon = "Bed";
-    } else if (lowerName.includes("fuel") || lowerName.includes("petrol") || lowerName.includes("diesel") || lowerName.includes("gas") || lowerName.includes("cab") || lowerName.includes("car")) {
-      icon = "Fuel";
-    } else if (lowerName.includes("shop") || lowerName.includes("buy") || lowerName.includes("grocery") || lowerName.includes("store") || lowerName.includes("bag")) {
-      icon = "ShoppingBag";
-    } else if (lowerName.includes("ticket") || lowerName.includes("movie") || lowerName.includes("show") || lowerName.includes("flight") || lowerName.includes("train")) {
-      icon = "Ticket";
-    } else if (lowerName.includes("tv") || lowerName.includes("ott") || lowerName.includes("netflix") || lowerName.includes("music") || lowerName.includes("game")) {
-      icon = "Tv";
-    }
+    // Determine icon from text instead of manual icon mapping from the client.
+
+    const icon = inferIconFromText(cleanName);
 
     const newCategory = await prisma.category.create({
       data: {
