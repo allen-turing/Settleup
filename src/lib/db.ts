@@ -24,6 +24,7 @@ const makePrismaClient = () => {
 
   console.log("📂 Using Local Better-SQLite3 Adapter");
   // Resolve connection path for SQLite db file
+
   const rawDbUrl = process.env.DATABASE_URL || "file:./dev.db";
   const dbPath = rawDbUrl.replace("file:", "");
   const absoluteDbPath = path.isAbsolute(dbPath)

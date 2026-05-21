@@ -109,6 +109,60 @@ interface AnalyticsData {
   contributionsBreakdown: { userId: string; name: string; paid: number; owed: number }[];
 }
 
+interface ExpenseDraftPayload {
+  groupId: string;
+  title: string;
+  description: string;
+  totalAmount: number;
+  paidById: string;
+  categoryId: string;
+  splitType: string;
+  expenseDate: string;
+  participants: Array<{
+    userId: string;
+    percentage?: number;
+    shares?: number;
+    shareAmount?: number;
+  }>;
+}
+
+const inferCategoryIdFromTitle = (
+  title: string,
+  categoryList: Array<{ id: string; name: string }>
+): string | null => {
+  const normalizedTitle = title.trim().toLowerCase();
+  if (!normalizedTitle || categoryList.length === 0) return null;
+
+  const tokens = normalizedTitle
+    .split(/[^a-z0-9]+/i)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  let best: { id: string; score: number } | null = null;
+
+  for (const category of categoryList) {
+    const cat = category.name.toLowerCase();
+    let score = 0;
+
+    if (normalizedTitle.includes(cat) || cat.includes(normalizedTitle)) {
+      score += 10;
+    }
+
+    for (const token of tokens) {
+      if (token.length < 3) continue;
+      if (cat.includes(token)) {
+        score += 3;
+      }
+    }
+
+    if (!best || score > best.score) {
+      best = { id: category.id, score };
+    }
+  }
+
+  return best && best.score > 0 ? best.id : null;
+};
+
 export default function GroupDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -122,12 +176,12 @@ export default function GroupDetailsPage() {
   const [balances, setBalances] = useState<MemberBalance[]>([]);
   const [simplifiedTxs, setSimplifiedTxs] = useState<SimplifiedTransaction[]>([]);
   const [invitations, setInvitations] = useState<{ id: string; email: string; invitedAt: string }[]>([]);
-  
+
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [viewTab, setViewTab] = useState<"expenses" | "analytics">("expenses");
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -153,6 +207,7 @@ export default function GroupDetailsPage() {
   const [expParticipants, setExpParticipants] = useState<Record<string, { checked: boolean; value: string }>>({});
   const [expLoading, setExpLoading] = useState(false);
   const [expError, setExpError] = useState("");
+  const [queuedExpenses, setQueuedExpenses] = useState<ExpenseDraftPayload[]>([]);
 
   // Custom Category States
   const [isCreatingCustomCategory, setIsCreatingCustomCategory] = useState(false);
@@ -218,7 +273,7 @@ export default function GroupDetailsPage() {
       // Pre-populate expense modal fields
       if (data.members.length > 0) {
         setExpPayer(data.members[0].userId);
-        
+
         // Check everyone by default for splits
         const checkedMap: Record<string, { checked: boolean; value: string }> = {};
         data.members.forEach((m: Member) => {
@@ -294,6 +349,14 @@ export default function GroupDetailsPage() {
       .catch((err) => console.error(err));
   }, []);
 
+  useEffect(() => {
+    if (!isExpenseModalOpen || editingExpenseId) return;
+    const matchedCategoryId = inferCategoryIdFromTitle(expTitle, categories);
+    if (matchedCategoryId && matchedCategoryId !== expCategory) {
+      setExpCategory(matchedCategoryId);
+    }
+  }, [isExpenseModalOpen, editingExpenseId, expTitle, categories, expCategory]);
+
   const fetchAnalytics = async () => {
     try {
       const res = await fetch(`/api/groups/${groupId}/analytics`);
@@ -333,7 +396,7 @@ export default function GroupDetailsPage() {
 
       setInviteSuccess(true);
       setInviteEmail("");
-      
+
       // Refresh the group details to show the new member
       await fetchGroupDetails();
     } catch (err: any) {
@@ -362,6 +425,7 @@ export default function GroupDetailsPage() {
     setExpDate(new Date().toISOString().split("T")[0]);
     setExpError("");
     setEditingExpenseId(null);
+    setQueuedExpenses([]);
     setIsExpenseModalOpen(true);
   };
 
@@ -401,6 +465,7 @@ export default function GroupDetailsPage() {
     setExpParticipants(newParticipantsMap);
     setExpError("");
     setEditingExpenseId(e.id);
+    setQueuedExpenses([]);
     setIsExpenseModalOpen(true);
   };
 
@@ -439,8 +504,159 @@ export default function GroupDetailsPage() {
 
     setExpParticipants(newParticipantsMap);
     setExpError("");
+    setQueuedExpenses([]);
     setIsExpenseModalOpen(true);
   };
+
+  const applyGroupSnapshot = (snapshot: any) => {
+    if (!snapshot) return;
+    setGroup(snapshot.group);
+    setMembers(snapshot.members || []);
+    setExpenses(snapshot.expenses || []);
+    setSettlements(snapshot.settlements || []);
+    setBalances(snapshot.balances || []);
+    setSimplifiedTxs(snapshot.simplifiedTransactions || []);
+  };
+
+  const buildExpenseDraftFromForm = (): ExpenseDraftPayload | null => {
+    const amountNum = parseFloat(expAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setExpError("Please enter a valid positive expense amount.");
+      return null;
+    }
+
+    const checkedParticipants = Object.entries(expParticipants)
+      .filter(([_, data]) => data.checked)
+      .map(([userId, data]) => {
+        const item: any = { userId };
+        if (expSplitType === "PERCENTAGE") {
+          item.percentage = parseFloat(data.value) || 0;
+        } else if (expSplitType === "SHARES") {
+          item.shares = parseInt(data.value, 10) || 0;
+        } else if (expSplitType === "EXACT") {
+          item.shareAmount = parseFloat(data.value) || 0;
+        }
+        return item;
+      });
+
+    if (checkedParticipants.length === 0) {
+      setExpError("Please select at least one participant for the split.");
+      return null;
+    }
+
+    if (expSplitType === "PERCENTAGE") {
+      const sum = checkedParticipants.reduce((s, p) => s + p.percentage, 0);
+      if (Math.abs(sum - 100) > 0.01) {
+        setExpError(`The sum of percentages must equal 100%. Current sum: ${sum}%`);
+        return null;
+      }
+    } else if (expSplitType === "EXACT") {
+      const sum = checkedParticipants.reduce((s, p) => s + p.shareAmount, 0);
+      if (Math.abs(sum - amountNum) > 0.01) {
+        setExpError(`The sum of exact split shares (₹${sum.toFixed(2)}) must equal the total amount (₹${amountNum.toFixed(2)}).`);
+        return null;
+      }
+    } else if (expSplitType === "SHARES") {
+      const totalShares = checkedParticipants.reduce((s, p) => s + p.shares, 0);
+      if (totalShares <= 0) {
+        setExpError("The total shares must be greater than 0.");
+        return null;
+      }
+    }
+
+    return {
+      groupId,
+      title: expTitle.trim(),
+      description: expDesc.trim(),
+      totalAmount: amountNum,
+      paidById: expPayer,
+      categoryId: expCategory,
+      splitType: expSplitType,
+      expenseDate: new Date(expDate).toISOString(),
+      participants: checkedParticipants,
+    };
+  };
+
+  const resetExpenseFormForNextEntry = () => {
+    setExpTitle("");
+    setExpDesc("");
+    setExpAmount("");
+    setExpParticipants((prev) => {
+      const updated: Record<string, { checked: boolean; value: string }> = {};
+      Object.keys(prev).forEach((k) => {
+        updated[k] = {
+          checked: prev[k].checked,
+          value: "",
+        };
+      });
+      return updated;
+    });
+  };
+
+  const flushQueuedExpenses = async (toCreate: ExpenseDraftPayload[]) => {
+    if (toCreate.length === 0) {
+      return;
+    }
+
+    const response = await fetch("/api/expenses/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        expenses: toCreate,
+        includeGroupSnapshot: true,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to log queued expenses.");
+    }
+
+    if (data.groupSnapshot) {
+      applyGroupSnapshot(data.groupSnapshot);
+    } else {
+      await fetchGroupDetails();
+    }
+  };
+
+  const closeExpenseModal = async () => {
+    if (expLoading) return;
+    if (editingExpenseId || queuedExpenses.length === 0) {
+      setIsExpenseModalOpen(false);
+      setQueuedExpenses([]);
+      return;
+    }
+
+    setExpLoading(true);
+    setExpError("");
+    try {
+      await flushQueuedExpenses(queuedExpenses);
+      setQueuedExpenses([]);
+      setIsExpenseModalOpen(false);
+      resetExpenseFormForNextEntry();
+    } catch (err: any) {
+      setExpError(err.message || "An error occurred.");
+    } finally {
+      setExpLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isExpenseModalOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        void closeExpenseModal();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isExpenseModalOpen, closeExpenseModal]);
 
   const handleDeleteExpense = async (expenseId: string) => {
     try {
@@ -493,6 +709,7 @@ export default function GroupDetailsPage() {
     }
 
     try {
+
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -524,96 +741,59 @@ export default function GroupDetailsPage() {
     setExpError("");
     setExpLoading(true);
 
-    const amountNum = parseFloat(expAmount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      setExpError("Please enter a valid positive expense amount.");
+    const draft = buildExpenseDraftFromForm();
+    if (!draft) {
       setExpLoading(false);
       return;
-    }
-
-    // Build participants array
-    const checkedParticipants = Object.entries(expParticipants)
-      .filter(([_, data]) => data.checked)
-      .map(([userId, data]) => {
-        const item: any = { userId };
-        if (expSplitType === "PERCENTAGE") {
-          item.percentage = parseFloat(data.value) || 0;
-        } else if (expSplitType === "SHARES") {
-          item.shares = parseInt(data.value, 10) || 0;
-        } else if (expSplitType === "EXACT") {
-          item.shareAmount = parseFloat(data.value) || 0;
-        }
-        return item;
-      });
-
-    if (checkedParticipants.length === 0) {
-      setExpError("Please select at least one participant for the split.");
-      setExpLoading(false);
-      return;
-    }
-
-    // Client-side validations
-    if (expSplitType === "PERCENTAGE") {
-      const sum = checkedParticipants.reduce((s, p) => s + p.percentage, 0);
-      if (Math.abs(sum - 100) > 0.01) {
-        setExpError(`The sum of percentages must equal 100%. Current sum: ${sum}%`);
-        setExpLoading(false);
-        return;
-      }
-    } else if (expSplitType === "EXACT") {
-      const sum = checkedParticipants.reduce((s, p) => s + p.shareAmount, 0);
-      if (Math.abs(sum - amountNum) > 0.01) {
-        setExpError(`The sum of exact split shares (₹${sum.toFixed(2)}) must equal the total amount (₹${amountNum.toFixed(2)}).`);
-        setExpLoading(false);
-        return;
-      }
-    } else if (expSplitType === "SHARES") {
-      const totalShares = checkedParticipants.reduce((s, p) => s + p.shares, 0);
-      if (totalShares <= 0) {
-        setExpError("The total shares must be greater than 0.");
-        setExpLoading(false);
-        return;
-      }
     }
 
     try {
-      const url = editingExpenseId ? `/api/expenses/${editingExpenseId}` : "/api/expenses";
-      const method = editingExpenseId ? "PUT" : "POST";
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          groupId,
-          title: expTitle.trim(),
-          description: expDesc.trim(),
-          totalAmount: amountNum,
-          paidById: expPayer,
-          categoryId: expCategory,
-          splitType: expSplitType,
-          expenseDate: new Date(expDate).toISOString(),
-          participants: checkedParticipants,
-        }),
-      });
+      if (editingExpenseId) {
+        const response = await fetch(`/api/expenses/${editingExpenseId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to update expense.");
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to ${editingExpenseId ? "update" : "log"} expense.`);
+        setIsExpenseModalOpen(false);
+        setExpTitle("");
+        setExpDesc("");
+        setExpAmount("");
+        setEditingExpenseId(null);
+        setQueuedExpenses([]);
+        await fetchGroupDetails();
+      } else {
+        const toCreate = [...queuedExpenses, draft];
+        await flushQueuedExpenses(toCreate);
+
+        setIsExpenseModalOpen(false);
+        setExpTitle("");
+        setExpDesc("");
+        setExpAmount("");
+        setEditingExpenseId(null);
+        setQueuedExpenses([]);
       }
-
-      setIsExpenseModalOpen(false);
-      setExpTitle("");
-      setExpDesc("");
-      setExpAmount("");
-      setEditingExpenseId(null);
-      
-      // Refresh details
-      await fetchGroupDetails();
     } catch (err: any) {
       setExpError(err.message || "An error occurred.");
     } finally {
       setExpLoading(false);
     }
+  };
+
+  const handleKeepLoggingExpense = async () => {
+    if (editingExpenseId) return;
+    setExpError("");
+
+    const draft = buildExpenseDraftFromForm();
+    if (!draft) return;
+
+    setQueuedExpenses((prev) => [...prev, draft]);
+    resetExpenseFormForNextEntry();
   };
 
   const handleAddSettlement = async (e: React.FormEvent) => {
@@ -657,7 +837,7 @@ export default function GroupDetailsPage() {
       setIsSettleModalOpen(false);
       setSettleAmount("");
       setSettleNote("");
-      
+
       // Refresh details
       await fetchGroupDetails();
     } catch (err: any) {
@@ -837,21 +1017,19 @@ export default function GroupDetailsPage() {
                 <div className="flex border-b border-white/5 pb-px gap-6 text-sm font-semibold">
                   <button
                     onClick={() => setViewTab("expenses")}
-                    className={`pb-3 border-b-2 cursor-pointer transition ${
-                      viewTab === "expenses"
-                        ? "border-purple-500 text-purple-400"
-                        : "border-transparent text-zinc-400 hover:text-white"
-                    }`}
+                    className={`pb-3 border-b-2 cursor-pointer transition ${viewTab === "expenses"
+                      ? "border-purple-500 text-purple-400"
+                      : "border-transparent text-zinc-400 hover:text-white"
+                      }`}
                   >
                     Expenses & Payments
                   </button>
                   <button
                     onClick={() => setViewTab("analytics")}
-                    className={`pb-3 border-b-2 cursor-pointer transition ${
-                      viewTab === "analytics"
-                        ? "border-purple-500 text-purple-400"
-                        : "border-transparent text-zinc-400 hover:text-white"
-                    }`}
+                    className={`pb-3 border-b-2 cursor-pointer transition ${viewTab === "analytics"
+                      ? "border-purple-500 text-purple-400"
+                      : "border-transparent text-zinc-400 hover:text-white"
+                      }`}
                   >
                     Spending Analytics
                   </button>
@@ -870,135 +1048,135 @@ export default function GroupDetailsPage() {
                   const _isFiltered = !!(filterMemberId || filterCategoryId);
 
                   return (
-                  <div className="space-y-4">
-                    {/* Filter Bar */}
-                    {expenses.length > 0 && (
-                      <div className="glass-card rounded-2xl p-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Person</p>
-                          <div className="flex flex-wrap gap-2">
-                            <button onClick={() => setFilterMemberId(null)}
-                              className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterMemberId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
-                              Everyone
-                            </button>
-                            {members.map((m) => (
-                              <button key={m.userId}
-                                onClick={() => setFilterMemberId(filterMemberId === m.userId ? null : m.userId)}
-                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterMemberId === m.userId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
-                                {m.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        {_uniqueCategories.length > 0 && (
+                    <div className="space-y-4">
+                      {/* Filter Bar */}
+                      {expenses.length > 0 && (
+                        <div className="glass-card rounded-2xl p-4 space-y-3">
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Category</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Person</p>
                             <div className="flex flex-wrap gap-2">
-                              <button onClick={() => setFilterCategoryId(null)}
-                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterCategoryId ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
-                                All Categories
+                              <button onClick={() => setFilterMemberId(null)}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterMemberId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                Everyone
                               </button>
-                              {_uniqueCategories.map((cat: any) => {
-                                const _M = CATEGORY_META[cat.icon] || CATEGORY_META.HelpCircle;
-                                const _CI = _M.icon;
-                                return (
-                                  <button key={cat.id}
-                                    onClick={() => setFilterCategoryId(filterCategoryId === cat.id ? null : cat.id)}
-                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterCategoryId === cat.id ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
-                                    <_CI className="h-3 w-3" />{cat.name}
-                                  </button>
-                                );
-                              })}
+                              {members.map((m) => (
+                                <button key={m.userId}
+                                  onClick={() => setFilterMemberId(filterMemberId === m.userId ? null : m.userId)}
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterMemberId === m.userId ? "bg-purple-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                  {m.name}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                        )}
-                        {_isFiltered && (() => {
-                          const filterPersonName = members.find(m => m.userId === filterMemberId)?.name || "Everyone";
-                          const filterCategoryName = _uniqueCategories.find(c => c.id === filterCategoryId)?.name || "All Categories";
-                          
-                          let totalPaid = 0;
-                          let totalShare = 0;
-                          
-                          if (filterMemberId) {
-                            totalPaid = _filteredExpenses
-                              .filter(e => e.paidById === filterMemberId)
-                              .reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
-                            
-                            totalShare = _filteredExpenses.reduce((sum, e) => {
-                              const p = (e.participants || []).find((part: any) => part.userId === filterMemberId);
-                              return sum + (p ? parseFloat(p.shareAmount) : 0);
-                            }, 0);
-                          } else {
-                            totalPaid = _filteredExpenses.reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
-                          }
-
-                          return (
-                            <div className="mt-2 pt-3 border-t border-white/5 space-y-2.5">
-                              <div className="flex justify-between items-center">
-                                <p className="text-[11px] text-zinc-500">
-                                  Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
-                                </p>
-                                <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
-                                  className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
-                                  Clear filters
+                          {_uniqueCategories.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Category</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button onClick={() => setFilterCategoryId(null)}
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${!filterCategoryId ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                  All Categories
                                 </button>
-                              </div>
-
-                              <div className="bg-zinc-950/40 border border-white/5 rounded-xl p-3 space-y-2">
-                                <div className="text-[11px] text-zinc-400 font-semibold">
-                                  Spend Summary: <span className="text-purple-400 font-bold">{filterPersonName}</span> in <span className="text-blue-400 font-bold">{filterCategoryName}</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 pt-1">
-                                  {filterMemberId ? (
-                                    <>
-                                      <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
-                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Total Paid</p>
-                                        <p className="text-xs font-extrabold text-emerald-400 mt-0.5">₹{totalPaid.toFixed(2)}</p>
-                                      </div>
-                                      <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
-                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Actual Cost / Share</p>
-                                        <p className="text-xs font-extrabold text-white mt-0.5">₹{totalShare.toFixed(2)}</p>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div className="col-span-2 bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2 flex justify-between items-center">
-                                      <div>
-                                        <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-semibold">Total Category Spending</p>
-                                        <p className="text-xs font-extrabold text-white mt-0.5">₹{totalPaid.toFixed(2)}</p>
-                                      </div>
-                                      <span className="text-[9px] text-zinc-500 font-medium">Across all members</span>
-                                    </div>
-                                  )}
-                                </div>
+                                {_uniqueCategories.map((cat: any) => {
+                                  const _M = CATEGORY_META[cat.icon] || CATEGORY_META.HelpCircle;
+                                  const _CI = _M.icon;
+                                  return (
+                                    <button key={cat.id}
+                                      onClick={() => setFilterCategoryId(filterCategoryId === cat.id ? null : cat.id)}
+                                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filterCategoryId === cat.id ? "bg-blue-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}>
+                                      <_CI className="h-3 w-3" />{cat.name}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
-                          );
-                        })()}
-                      </div>
-                    )}
+                          )}
+                          {_isFiltered && (() => {
+                            const filterPersonName = members.find(m => m.userId === filterMemberId)?.name || "Everyone";
+                            const filterCategoryName = _uniqueCategories.find(c => c.id === filterCategoryId)?.name || "All Categories";
 
-                    {/* Feed */}
-                    {_filteredExpenses.length === 0 && !_isFiltered && settlements.length === 0 ? (
-                      <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
-                        <div className="h-14 w-14 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4 animate-pulse">
-                          <CreditCard className="h-7 w-7" />
+                            let totalPaid = 0;
+                            let totalShare = 0;
+
+                            if (filterMemberId) {
+                              totalPaid = _filteredExpenses
+                                .filter(e => e.paidById === filterMemberId)
+                                .reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
+
+                              totalShare = _filteredExpenses.reduce((sum, e) => {
+                                const p = (e.participants || []).find((part: any) => part.userId === filterMemberId);
+                                return sum + (p ? parseFloat(p.shareAmount) : 0);
+                              }, 0);
+                            } else {
+                              totalPaid = _filteredExpenses.reduce((sum, e) => sum + parseFloat(e.totalAmount), 0);
+                            }
+
+                            return (
+                              <div className="mt-2 pt-3 border-t border-white/5 space-y-2.5">
+                                <div className="flex justify-between items-center">
+                                  <p className="text-[11px] text-zinc-500">
+                                    Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
+                                  </p>
+                                  <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
+                                    className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
+                                    Clear filters
+                                  </button>
+                                </div>
+
+                                <div className="bg-zinc-950/40 border border-white/5 rounded-xl p-3 space-y-2">
+                                  <div className="text-[11px] text-zinc-400 font-semibold">
+                                    Spend Summary: <span className="text-purple-400 font-bold">{filterPersonName}</span> in <span className="text-blue-400 font-bold">{filterCategoryName}</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3 pt-1">
+                                    {filterMemberId ? (
+                                      <>
+                                        <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
+                                          <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Total Paid</p>
+                                          <p className="text-xs font-extrabold text-emerald-400 mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                        </div>
+                                        <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
+                                          <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Actual Cost / Share</p>
+                                          <p className="text-xs font-extrabold text-white mt-0.5">₹{totalShare.toFixed(2)}</p>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="col-span-2 bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2 flex justify-between items-center">
+                                        <div>
+                                          <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-semibold">Total Category Spending</p>
+                                          <p className="text-xs font-extrabold text-white mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                        </div>
+                                        <span className="text-[9px] text-zinc-500 font-medium">Across all members</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
-                        <h4 className="text-white font-semibold text-base mb-1">No Activity Logged</h4>
-                        <p className="text-zinc-400 text-sm max-w-sm mb-6">
-                          There are no expenses or settlement payments logged in this group. Click &quot;Add Expense&quot; to get started!
-                        </p>
-                      </div>
-                    ) : _filteredExpenses.length === 0 && _isFiltered ? (
-                      <div className="glass-card rounded-2xl p-10 text-center flex flex-col justify-center items-center">
-                        <p className="text-zinc-400 text-sm">No expenses match the selected filters.</p>
-                        <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
-                          className="mt-3 text-xs text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
-                          Clear filters
-                        </button>
-                      </div>
-                    ) : (
-                      (() => {
-                        const sortedEvents = [
+                      )}
+
+                      {/* Feed */}
+                      {_filteredExpenses.length === 0 && !_isFiltered && settlements.length === 0 ? (
+                        <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
+                          <div className="h-14 w-14 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4 animate-pulse">
+                            <CreditCard className="h-7 w-7" />
+                          </div>
+                          <h4 className="text-white font-semibold text-base mb-1">No Activity Logged</h4>
+                          <p className="text-zinc-400 text-sm max-w-sm mb-6">
+                            There are no expenses or settlement payments logged in this group. Click &quot;Add Expense&quot; to get started!
+                          </p>
+                        </div>
+                      ) : _filteredExpenses.length === 0 && _isFiltered ? (
+                        <div className="glass-card rounded-2xl p-10 text-center flex flex-col justify-center items-center">
+                          <p className="text-zinc-400 text-sm">No expenses match the selected filters.</p>
+                          <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); }}
+                            className="mt-3 text-xs text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
+                            Clear filters
+                          </button>
+                        </div>
+                      ) : (
+                        (() => {
+                          const sortedEvents = [
                             ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime(), rawDate: e.expenseDate })),
                             ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime(), rawDate: s.settlementDate })) : []),
                           ].sort((a, b) => b.dateKey - a.dateKey);
@@ -1023,18 +1201,18 @@ export default function GroupDetailsPage() {
                           const formatDateHeader = (dateStr: string) => {
                             const [yearStr, monthStr, dayStr] = dateStr.split("-");
                             const d = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                            
+
                             const today = new Date();
                             const yesterday = new Date();
                             yesterday.setDate(yesterday.getDate() - 1);
-                            
-                            const isToday = d.getDate() === today.getDate() && 
-                                            d.getMonth() === today.getMonth() && 
-                                            d.getFullYear() === today.getFullYear();
-                                            
-                            const isYesterday = d.getDate() === yesterday.getDate() && 
-                                                d.getMonth() === yesterday.getMonth() && 
-                                                d.getFullYear() === yesterday.getFullYear();
+
+                            const isToday = d.getDate() === today.getDate() &&
+                              d.getMonth() === today.getMonth() &&
+                              d.getFullYear() === today.getFullYear();
+
+                            const isYesterday = d.getDate() === yesterday.getDate() &&
+                              d.getMonth() === yesterday.getMonth() &&
+                              d.getFullYear() === yesterday.getFullYear();
 
                             const formattedDate = d.toLocaleDateString("en-IN", {
                               day: "numeric",
@@ -1048,7 +1226,7 @@ export default function GroupDetailsPage() {
                             if (isYesterday) {
                               return `Yesterday — ${formattedDate}`;
                             }
-                            
+
                             const weekday = d.toLocaleDateString("en-IN", { weekday: "long" });
                             return `${formattedDate} • ${weekday}`;
                           };
@@ -1181,8 +1359,8 @@ export default function GroupDetailsPage() {
                             </div>
                           );
                         })()
-                    )}
-                  </div>
+                      )}
+                    </div>
                   );
                 })() : (
                   <div className="space-y-6">
@@ -1195,6 +1373,7 @@ export default function GroupDetailsPage() {
                             <p className="text-zinc-500 text-xs uppercase tracking-wider">Total Group Spending</p>
                             <h3 className="text-3xl font-extrabold text-white mt-1">₹{analytics.totalSpend.toFixed(2)}</h3>
                           </div>
+
                           <div className="flex items-center gap-1.5 text-xs text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full border border-purple-500/20">
                             <PieChart className="h-4 w-4" />
                             <span>Rich Category Distribution</span>
@@ -1204,8 +1383,7 @@ export default function GroupDetailsPage() {
                         {/* Category Progress Breakdown */}
                         <div className="glass-card rounded-2xl p-6 space-y-4">
                           <h4 className="text-sm font-semibold text-white">Category Spending Distribution</h4>
-                          
-                          {/* Cumulative Progress Bar */}
+
                           <div className="h-3 w-full rounded-full bg-zinc-900 overflow-hidden flex">
                             {analytics.categoryBreakdown.map((c, i) => (
                               <div
@@ -1220,7 +1398,6 @@ export default function GroupDetailsPage() {
                             ))}
                           </div>
 
-                          {/* Legends Grid */}
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
                             {analytics.categoryBreakdown.map((c, i) => {
                               const Meta = CATEGORY_META[c.icon] || CATEGORY_META.HelpCircle;
@@ -1246,7 +1423,7 @@ export default function GroupDetailsPage() {
                         {/* User Contribution Chart */}
                         <div className="glass-card rounded-2xl p-6 space-y-5">
                           <h4 className="text-sm font-semibold text-white">Member Contributions (Paid vs Owed)</h4>
-                          
+
                           <div className="space-y-4">
                             {analytics.contributionsBreakdown.map((member, i) => {
                               const maxAmount = Math.max(
@@ -1462,7 +1639,7 @@ export default function GroupDetailsPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-card rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto relative animate-zoom-in">
             <button
-              onClick={() => setIsExpenseModalOpen(false)}
+              onClick={closeExpenseModal}
               className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
             >
               <X className="h-4.5 w-4.5" />
@@ -1475,6 +1652,12 @@ export default function GroupDetailsPage() {
             {expError && (
               <div className="mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-xs text-red-400">
                 {expError}
+              </div>
+            )}
+
+            {!editingExpenseId && queuedExpenses.length > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs text-purple-300">
+                {queuedExpenses.length} expense{queuedExpenses.length > 1 ? "s" : ""} queued. Closing this dialog will log queued expenses automatically.
               </div>
             )}
 
@@ -1562,6 +1745,7 @@ export default function GroupDetailsPage() {
                           placeholder="Category name (e.g. Flights)"
                           className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 outline-none"
                         />
+
                         <button
                           type="button"
                           disabled={customCategoryLoading}
@@ -1660,8 +1844,8 @@ export default function GroupDetailsPage() {
                                 expSplitType === "PERCENTAGE"
                                   ? "%"
                                   : expSplitType === "SHARES"
-                                  ? "Shares"
-                                  : "INR"
+                                    ? "Shares"
+                                    : "INR"
                               }
                               value={status.value}
                               onChange={(e) => handleParticipantChange(m.userId, true, e.target.value)}
@@ -1671,8 +1855,8 @@ export default function GroupDetailsPage() {
                               {expSplitType === "PERCENTAGE"
                                 ? "%"
                                 : expSplitType === "SHARES"
-                                ? "shares"
-                                : "INR"}
+                                  ? "shares"
+                                  : "INR"}
                             </span>
                           </div>
                         )}
@@ -1682,19 +1866,41 @@ export default function GroupDetailsPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={expLoading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-sm font-semibold text-white rounded-lg shadow transition cursor-pointer mt-2"
-              >
-                {expLoading ? (
-                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : editingExpenseId ? (
-                  "Save Changes"
-                ) : (
-                  "Log Expense"
-                )}
-              </button>
+              {editingExpenseId ? (
+                <button
+                  type="submit"
+                  disabled={expLoading}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-sm font-semibold text-white rounded-lg shadow transition cursor-pointer mt-2"
+                >
+                  {expLoading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <button
+                    type="submit"
+                    disabled={expLoading}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-sm font-semibold text-white rounded-lg shadow transition cursor-pointer"
+                  >
+                    {expLoading ? (
+                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      "Log Expense"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleKeepLoggingExpense}
+                    disabled={expLoading}
+                    className="w-full py-2.5 px-4 bg-zinc-900 border border-zinc-700 hover:border-purple-500/40 hover:text-purple-300 disabled:opacity-50 text-sm font-semibold text-zinc-200 rounded-lg transition cursor-pointer"
+                  >
+                    Keep Logging Expense
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>
