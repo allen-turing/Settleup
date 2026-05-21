@@ -997,122 +997,190 @@ export default function GroupDetailsPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-4">
-                        {/* Chronological list of events */}
-                        {[
-                          ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime() })),
-                          ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime() })) : []),
-                        ]
-                          .sort((a, b) => b.dateKey - a.dateKey)
-                          .map((event) => {
-                            if (event.type === "EXPENSE") {
-                              const e = event as any;
-                              const Meta = CATEGORY_META[e.category?.icon] || CATEGORY_META.HelpCircle;
-                              const IconComponent = Meta.icon;
+                      (() => {
+                        const sortedEvents = [
+                            ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime(), rawDate: e.expenseDate })),
+                            ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime(), rawDate: s.settlementDate })) : []),
+                          ].sort((a, b) => b.dateKey - a.dateKey);
 
-                              return (
-                                <div
-                                  key={e.id}
-                                  className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative overflow-hidden"
-                                >
-                                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                                    {/* Category Icon Badge */}
-                                    <div className={`h-11 w-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${Meta.color}`}>
-                                      <IconComponent className="h-5 w-5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                      <h4 className="text-sm font-bold text-white truncate">{e.title}</h4>
-                                      <p className="text-zinc-500 text-xs mt-1 truncate">
-                                        Paid by <span className="text-zinc-300 font-semibold">{e.paidBy?.name}</span> •{" "}
-                                        {new Date(e.expenseDate).toLocaleDateString("en-IN", {
-                                          day: "numeric",
-                                          month: "short",
-                                          year: "numeric",
-                                        })}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-4">
-                                    <div className="text-right">
-                                      <p className="text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
-                                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-1 inline-block">
-                                        {e.splitType} Split
-                                      </span>
-                                    </div>
-
-                                    {/* Edit Button */}
-                                    <button
-                                      onClick={() => triggerEditExpense(e)}
-                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition cursor-pointer"
-                                      title="Edit Expense"
-                                    >
-                                      <Edit2 className="h-3.8 w-3.8" />
-                                    </button>
-
-                                    {/* Duplicate Button */}
-                                    <button
-                                      onClick={() => triggerDuplicateExpense(e)}
-                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-purple-400 hover:border-purple-500/20 hover:bg-purple-500/5 transition cursor-pointer"
-                                      title="Duplicate Expense"
-                                    >
-                                      <Copy className="h-3.8 w-3.8" />
-                                    </button>
-
-                                    {/* Delete Button — inline two-step confirmation */}
-                                    {deleteConfirmId === e.id ? (
-                                      <div className="flex items-center gap-1.5 animate-fade-in">
-                                        <button
-                                          onClick={() => handleDeleteExpense(e.id)}
-                                          className="px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold transition cursor-pointer"
-                                        >
-                                          Confirm
-                                        </button>
-                                        <button
-                                          onClick={() => setDeleteConfirmId(null)}
-                                          className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold transition cursor-pointer"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => setDeleteConfirmId(e.id)}
-                                        className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
-                                        title="Delete Expense"
-                                      >
-                                        <Trash2 className="h-3.8 w-3.8" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            } else {
-                              const s = event as any;
-                              return (
-                                <div
-                                  key={s.id}
-                                  className="glass-card rounded-2xl p-4 bg-zinc-900/35 border-dashed flex items-center justify-between gap-4"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                                      <CheckCircle className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-zinc-400 font-semibold">
-                                        <span className="text-white font-bold">{s.paidBy?.name}</span> paid{" "}
-                                        <span className="text-white font-bold">{s.paidTo?.name}</span>
-                                      </p>
-                                      {s.note && <p className="text-[10px] text-zinc-500 italic mt-0.5">"{s.note}"</p>}
-                                    </div>
-                                  </div>
-
-                                  <p className="text-sm font-extrabold text-emerald-400">₹{parseFloat(s.amount).toFixed(2)}</p>
-                                </div>
-                              );
+                          // Group events by date string (YYYY-MM-DD)
+                          const groups: { [dateStr: string]: typeof sortedEvents } = {};
+                          sortedEvents.forEach((event) => {
+                            const dateObj = new Date(event.rawDate);
+                            const year = dateObj.getFullYear();
+                            const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+                            const day = String(dateObj.getDate()).padStart(2, "0");
+                            const key = `${year}-${month}-${day}`;
+                            if (!groups[key]) {
+                              groups[key] = [];
                             }
-                          })}
-                      </div>
+                            groups[key].push(event);
+                          });
+
+                          // Sort keys in descending order
+                          const sortedDateKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+                          const formatDateHeader = (dateStr: string) => {
+                            const [yearStr, monthStr, dayStr] = dateStr.split("-");
+                            const d = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                            
+                            const today = new Date();
+                            const yesterday = new Date();
+                            yesterday.setDate(yesterday.getDate() - 1);
+                            
+                            const isToday = d.getDate() === today.getDate() && 
+                                            d.getMonth() === today.getMonth() && 
+                                            d.getFullYear() === today.getFullYear();
+                                            
+                            const isYesterday = d.getDate() === yesterday.getDate() && 
+                                                d.getMonth() === yesterday.getMonth() && 
+                                                d.getFullYear() === yesterday.getFullYear();
+
+                            const formattedDate = d.toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            });
+
+                            if (isToday) {
+                              return `Today — ${formattedDate}`;
+                            }
+                            if (isYesterday) {
+                              return `Yesterday — ${formattedDate}`;
+                            }
+                            
+                            const weekday = d.toLocaleDateString("en-IN", { weekday: "long" });
+                            return `${formattedDate} • ${weekday}`;
+                          };
+
+                          return (
+                            <div className="space-y-6">
+                              {sortedDateKeys.map((dateKey) => {
+                                const dayEvents = groups[dateKey];
+                                return (
+                                  <div key={dateKey} className="space-y-3">
+                                    {/* Date Header / Divider */}
+                                    <div className="flex items-center justify-between gap-4 px-1 py-1">
+                                      <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 uppercase tracking-wider bg-zinc-900/60 border border-zinc-800/80 px-3 py-1 rounded-full">
+                                        <Calendar className="h-3 w-3 text-purple-400 animate-pulse" />
+                                        <span>{formatDateHeader(dateKey)}</span>
+                                      </div>
+                                      <div className="flex-1 h-px bg-white/5" />
+                                      <span className="text-[10px] text-zinc-500 font-semibold">{dayEvents.length} {dayEvents.length === 1 ? "activity" : "activities"}</span>
+                                    </div>
+
+                                    {/* Events for this day */}
+                                    <div className="space-y-3 pl-2.5 border-l border-purple-500/10 ml-3">
+                                      {dayEvents.map((event) => {
+                                        if (event.type === "EXPENSE") {
+                                          const e = event as any;
+                                          const Meta = CATEGORY_META[e.category?.icon] || CATEGORY_META.HelpCircle;
+                                          const IconComponent = Meta.icon;
+
+                                          return (
+                                            <div
+                                              key={e.id}
+                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative overflow-hidden transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10"
+                                            >
+                                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                {/* Category Icon Badge */}
+                                                <div className={`h-11 w-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${Meta.color}`}>
+                                                  <IconComponent className="h-5 w-5" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                  <h4 className="text-sm font-bold text-white truncate">{e.title}</h4>
+                                                  <p className="text-zinc-500 text-xs mt-1 truncate">
+                                                    Paid by <span className="text-zinc-300 font-semibold">{e.paidBy?.name}</span>
+                                                  </p>
+                                                </div>
+                                              </div>
+
+                                              <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                  <p className="text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
+                                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                                    {e.splitType} Split
+                                                  </span>
+                                                </div>
+
+                                                {/* Edit Button */}
+                                                <button
+                                                  onClick={() => triggerEditExpense(e)}
+                                                  className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition cursor-pointer"
+                                                  title="Edit Expense"
+                                                >
+                                                  <Edit2 className="h-3.8 w-3.8" />
+                                                </button>
+
+                                                {/* Duplicate Button */}
+                                                <button
+                                                  onClick={() => triggerDuplicateExpense(e)}
+                                                  className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-purple-400 hover:border-purple-500/20 hover:bg-purple-500/5 transition cursor-pointer"
+                                                  title="Duplicate Expense"
+                                                >
+                                                  <Copy className="h-3.8 w-3.8" />
+                                                </button>
+
+                                                {/* Delete Button — inline two-step confirmation */}
+                                                {deleteConfirmId === e.id ? (
+                                                  <div className="flex items-center gap-1.5 animate-fade-in">
+                                                    <button
+                                                      onClick={() => handleDeleteExpense(e.id)}
+                                                      className="px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                                    >
+                                                      Confirm
+                                                    </button>
+                                                    <button
+                                                      onClick={() => setDeleteConfirmId(null)}
+                                                      className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    onClick={() => setDeleteConfirmId(e.id)}
+                                                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
+                                                    title="Delete Expense"
+                                                  >
+                                                    <Trash2 className="h-3.8 w-3.8" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        } else {
+                                          const s = event as any;
+                                          return (
+                                            <div
+                                              key={s.id}
+                                              className="glass-card rounded-2xl p-4 bg-zinc-900/30 border-dashed border-zinc-800/40 flex items-center justify-between gap-4 transition-all duration-300 hover:border-zinc-700/30 hover:bg-zinc-900/15"
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <div className="h-9 w-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                                  <CheckCircle className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                  <p className="text-xs text-zinc-400 font-semibold">
+                                                    <span className="text-white font-bold">{s.paidBy?.name}</span> paid{" "}
+                                                    <span className="text-white font-bold">{s.paidTo?.name}</span>
+                                                  </p>
+                                                  {s.note && <p className="text-[10px] text-zinc-500 italic mt-0.5">"{s.note}"</p>}
+                                                </div>
+                                              </div>
+
+                                              <p className="text-sm font-extrabold text-emerald-400">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                            </div>
+                                          );
+                                        }
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()
                     )}
                   </div>
                   );
