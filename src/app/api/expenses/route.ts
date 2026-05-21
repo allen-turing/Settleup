@@ -26,7 +26,10 @@ export async function POST(request: Request) {
     } = body;
 
     // Basic Validation
-    if (!groupId || !title || !totalAmount || !paidById || !categoryId || !splitType || !expenseDate || !participants || participants.length === 0) {
+    const isSelfSplit = splitType === "SELF";
+    const actualParticipants = isSelfSplit ? [{ userId: paidById }] : participants;
+
+    if (!groupId || !title || !totalAmount || !paidById || !categoryId || !splitType || !expenseDate || !actualParticipants || actualParticipants.length === 0) {
       return NextResponse.json(
         { error: "Missing required fields for creating expense." },
         { status: 400 }
@@ -65,11 +68,11 @@ export async function POST(request: Request) {
     }[] = [];
 
     if (splitType === "EQUAL") {
-      const count = participants.length;
+      const count = actualParticipants.length;
       const baseShare = Math.floor((parsedTotal * 100) / count) / 100;
       let remainder = Number((parsedTotal - baseShare * count).toFixed(2));
 
-      participantData = participants.map((p: any, idx: number) => {
+      participantData = actualParticipants.map((p: any, idx: number) => {
         // Distribute remainder pennies to the first few participants
         const extra = remainder > 0.005 ? 0.01 : 0;
         if (extra > 0) remainder = Number((remainder - 0.01).toFixed(2));
@@ -79,9 +82,14 @@ export async function POST(request: Request) {
           shareAmount: Number((baseShare + extra).toFixed(2)),
         };
       });
+    } else if (splitType === "SELF") {
+      participantData = [{
+        userId: paidById,
+        shareAmount: parsedTotal,
+      }];
     } else if (splitType === "EXACT") {
       let sum = 0;
-      participantData = participants.map((p: any) => {
+      participantData = actualParticipants.map((p: any) => {
         const amt = Number(Number(p.shareAmount || 0).toFixed(2));
         sum += amt;
         return {
@@ -98,7 +106,7 @@ export async function POST(request: Request) {
       }
     } else if (splitType === "PERCENTAGE") {
       let percentSum = 0;
-      participants.forEach((p: any) => {
+      actualParticipants.forEach((p: any) => {
         percentSum += Number(p.percentage || 0);
       });
 
@@ -110,7 +118,7 @@ export async function POST(request: Request) {
       }
 
       let shareSum = 0;
-      participantData = participants.map((p: any) => {
+      participantData = actualParticipants.map((p: any) => {
         const percent = Number(p.percentage || 0);
         const amt = Number(((percent / 100) * parsedTotal).toFixed(2));
         shareSum += amt;
@@ -128,7 +136,7 @@ export async function POST(request: Request) {
       }
     } else if (splitType === "SHARES") {
       let totalShares = 0;
-      participants.forEach((p: any) => {
+      actualParticipants.forEach((p: any) => {
         totalShares += Number(p.shares || 0);
       });
 
@@ -140,7 +148,7 @@ export async function POST(request: Request) {
       }
 
       let shareSum = 0;
-      participantData = participants.map((p: any) => {
+      participantData = actualParticipants.map((p: any) => {
         const shares = Number(p.shares || 0);
         const amt = Number(((shares / totalShares) * parsedTotal).toFixed(2));
         shareSum += amt;

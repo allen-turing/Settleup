@@ -525,19 +525,21 @@ export default function GroupDetailsPage() {
       return null;
     }
 
-    const checkedParticipants = Object.entries(expParticipants)
-      .filter(([_, data]) => data.checked)
-      .map(([userId, data]) => {
-        const item: any = { userId };
-        if (expSplitType === "PERCENTAGE") {
-          item.percentage = parseFloat(data.value) || 0;
-        } else if (expSplitType === "SHARES") {
-          item.shares = parseInt(data.value, 10) || 0;
-        } else if (expSplitType === "EXACT") {
-          item.shareAmount = parseFloat(data.value) || 0;
-        }
-        return item;
-      });
+    const checkedParticipants = expSplitType === "SELF"
+      ? [{ userId: expPayer }]
+      : Object.entries(expParticipants)
+          .filter(([_, data]) => data.checked)
+          .map(([userId, data]) => {
+            const item: any = { userId };
+            if (expSplitType === "PERCENTAGE") {
+              item.percentage = parseFloat(data.value) || 0;
+            } else if (expSplitType === "SHARES") {
+              item.shares = parseInt(data.value, 10) || 0;
+            } else if (expSplitType === "EXACT") {
+              item.shareAmount = parseFloat(data.value) || 0;
+            }
+            return item;
+          });
 
     if (checkedParticipants.length === 0) {
       setExpError("Please select at least one participant for the split.");
@@ -1258,7 +1260,7 @@ export default function GroupDetailsPage() {
                                           return (
                                             <div
                                               key={e.id}
-                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative overflow-hidden transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10"
+                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10"
                                             >
                                               <div className="flex items-center gap-4 flex-1 min-w-0">
                                                 {/* Category Icon Badge */}
@@ -1274,11 +1276,47 @@ export default function GroupDetailsPage() {
                                               </div>
 
                                               <div className="flex items-center gap-4">
-                                                <div className="text-right">
+                                                <div className="text-right relative group/amount cursor-help">
                                                   <p className="text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
                                                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-1 inline-block">
-                                                    {e.splitType} Split
+                                                    {e.splitType === "SELF" ? "Self Only" : `${e.splitType} Split`}
                                                   </span>
+
+                                                  {/* Glassmorphic Hover Share Distribution Tooltip */}
+                                                  <div className="bg-zinc-950/95 border border-zinc-800 backdrop-blur-md opacity-0 invisible scale-95 origin-bottom-right group-hover/amount:opacity-100 group-hover/amount:visible group-hover/amount:scale-100 transition-all duration-200 pointer-events-none shadow-2xl absolute right-0 bottom-full mb-2.5 z-30 w-64 p-3.5 rounded-xl text-left">
+                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2 border-b border-white/5 pb-1.5">
+                                                      Share Distribution
+                                                    </p>
+                                                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5">
+                                                      {(e.participants || []).map((p: any) => {
+                                                        let extraLabel = "";
+                                                        if (e.splitType === "PERCENTAGE" && p.percentage !== null && p.percentage !== undefined) {
+                                                          extraLabel = ` (${p.percentage}%)`;
+                                                        } else if (e.splitType === "SHARES" && p.shares !== null && p.shares !== undefined) {
+                                                          extraLabel = ` (${p.shares} ${p.shares === 1 ? 'share' : 'shares'})`;
+                                                        }
+
+                                                        return (
+                                                          <div key={p.userId} className="flex items-center justify-between py-1 gap-2 border-b border-white/[0.02] last:border-0">
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                              <span className="text-xs text-zinc-300 font-semibold truncate">
+                                                                {p.user?.name || "Member"}
+                                                              </span>
+                                                              {p.userId === e.paidById && (
+                                                                <span className="text-[9px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1 py-0.5 rounded-md font-bold flex-shrink-0">
+                                                                  Payer
+                                                                </span>
+                                                              )}
+                                                            </div>
+                                                            <span className="text-xs text-white font-extrabold flex-shrink-0">
+                                                              ₹{parseFloat(p.shareAmount).toFixed(2)}{extraLabel}
+                                                            </span>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                    <div className="absolute right-4 top-full w-2 h-2 -translate-y-1 rotate-45 border-r border-b border-zinc-800 bg-zinc-950/95" />
+                                                  </div>
                                                 </div>
 
                                                 {/* Edit Button */}
@@ -1796,6 +1834,7 @@ export default function GroupDetailsPage() {
                     className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white focus:bg-zinc-950"
                   >
                     <option value="EQUAL" className="bg-zinc-950">Equally</option>
+                    <option value="SELF" className="bg-zinc-950">Self Only (100% Payer)</option>
                     <option value="EXACT" className="bg-zinc-950">Exact Amounts</option>
                     <option value="PERCENTAGE" className="bg-zinc-950">Percentages</option>
                     <option value="SHARES" className="bg-zinc-950">By Shares</option>
@@ -1817,54 +1856,56 @@ export default function GroupDetailsPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 border-t border-white/5 pt-4">
-                <p className="text-xs font-semibold text-zinc-400 mb-2">Split Participants Details</p>
-                <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
-                  {members.map((m) => {
-                    const status = expParticipants[m.userId] || { checked: false, value: "" };
-                    return (
-                      <div key={m.userId} className="flex items-center justify-between gap-4 text-xs">
-                        <label className="flex items-center gap-2 font-semibold text-white select-none cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={status.checked}
-                            onChange={(e) => handleParticipantChange(m.userId, e.target.checked)}
-                            className="rounded accent-purple-600 h-4 w-4 bg-zinc-900 border-zinc-800"
-                          />
-                          <span>{m.name}</span>
-                        </label>
-
-                        {status.checked && expSplitType !== "EQUAL" && (
-                          <div className="flex items-center gap-1.5">
+              {expSplitType !== "SELF" && (
+                <div className="space-y-3 border-t border-white/5 pt-4">
+                  <p className="text-xs font-semibold text-zinc-400 mb-2">Split Participants Details</p>
+                  <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
+                    {members.map((m) => {
+                      const status = expParticipants[m.userId] || { checked: false, value: "" };
+                      return (
+                        <div key={m.userId} className="flex items-center justify-between gap-4 text-xs">
+                          <label className="flex items-center gap-2 font-semibold text-white select-none cursor-pointer">
                             <input
-                              type="number"
-                              step="any"
-                              required
-                              placeholder={
-                                expSplitType === "PERCENTAGE"
+                              type="checkbox"
+                              checked={status.checked}
+                              onChange={(e) => handleParticipantChange(m.userId, e.target.checked)}
+                              className="rounded accent-purple-600 h-4 w-4 bg-zinc-900 border-zinc-800"
+                            />
+                            <span>{m.name}</span>
+                          </label>
+
+                          {status.checked && expSplitType !== "EQUAL" && (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="any"
+                                required
+                                placeholder={
+                                  expSplitType === "PERCENTAGE"
+                                    ? "%"
+                                    : expSplitType === "SHARES"
+                                      ? "Shares"
+                                      : "INR"
+                                }
+                                value={status.value}
+                                onChange={(e) => handleParticipantChange(m.userId, true, e.target.value)}
+                                className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-center text-xs text-white"
+                              />
+                              <span className="text-zinc-500 font-semibold">
+                                {expSplitType === "PERCENTAGE"
                                   ? "%"
                                   : expSplitType === "SHARES"
-                                    ? "Shares"
-                                    : "INR"
-                              }
-                              value={status.value}
-                              onChange={(e) => handleParticipantChange(m.userId, true, e.target.value)}
-                              className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-center text-xs text-white"
-                            />
-                            <span className="text-zinc-500 font-semibold">
-                              {expSplitType === "PERCENTAGE"
-                                ? "%"
-                                : expSplitType === "SHARES"
-                                  ? "shares"
-                                  : "INR"}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                                    ? "shares"
+                                    : "INR"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {editingExpenseId ? (
                 <button
