@@ -5,10 +5,13 @@ import { prisma } from "@/lib/db";
 const ICON_PROFILES: Array<{ icon: string; corpus: string }> = [
   { icon: "Utensils", corpus: "food dining meal restaurant cafe breakfast lunch dinner snacks beverages" },
   { icon: "Bed", corpus: "hotel stay lodging hostel room suite accommodation rent nightly" },
-  { icon: "Fuel", corpus: "fuel petrol diesel gas transport taxi cab auto ride travel car bike" },
+  { icon: "Fuel", corpus: "fuel petrol diesel gas transport taxi cab auto ride car bike" },
   { icon: "ShoppingBag", corpus: "shopping groceries mart store market purchase buy supplies" },
   { icon: "Ticket", corpus: "ticket booking flight train bus movie event concert pass entry" },
   { icon: "Tv", corpus: "entertainment streaming ott music gaming game subscription media" },
+  { icon: "Coins", corpus: "cash money coin payment coins pay bank currency cash-only" },
+  { icon: "UserCircle", corpus: "personal self individual private own user custom profile" },
+  { icon: "Plane", corpus: "travel flight plane trip vacation holiday tour airline flying journey" },
   { icon: "HelpCircle", corpus: "miscellaneous other general uncategorized random" },
 ];
 

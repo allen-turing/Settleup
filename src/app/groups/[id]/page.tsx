@@ -31,7 +31,9 @@ import {
   Mail,
   Copy,
   LogOut,
-  UserCircle
+  UserCircle,
+  Coins,
+  Plane
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -43,6 +45,38 @@ const CATEGORY_META: Record<string, { icon: any; color: string }> = {
   Ticket: { icon: Ticket, color: "bg-red-500/10 text-red-400 border-red-500/20" },
   Tv: { icon: Tv, color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
   HelpCircle: { icon: HelpCircle, color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" },
+  Coins: { icon: Coins, color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  Cash: { icon: Coins, color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  cash: { icon: Coins, color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  UserCircle: { icon: UserCircle, color: "bg-sky-500/10 text-sky-400 border-sky-500/20" },
+  Personal: { icon: UserCircle, color: "bg-sky-500/10 text-sky-400 border-sky-500/20" },
+  personal: { icon: UserCircle, color: "bg-sky-500/10 text-sky-400 border-sky-500/20" },
+  Plane: { icon: Plane, color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
+  Travel: { icon: Plane, color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
+  travel: { icon: Plane, color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
+};
+
+const resolveCategoryMeta = (cat: { icon?: string; name?: string } | null | undefined) => {
+  if (!cat) return CATEGORY_META.HelpCircle;
+  if (cat.icon && cat.icon !== "HelpCircle" && CATEGORY_META[cat.icon]) {
+    return CATEGORY_META[cat.icon];
+  }
+  if (cat.name) {
+    const nameKey = cat.name.trim();
+    if (CATEGORY_META[nameKey]) return CATEGORY_META[nameKey];
+    const lowerName = nameKey.toLowerCase();
+    if (CATEGORY_META[lowerName]) return CATEGORY_META[lowerName];
+    const capitalizedName = nameKey.charAt(0).toUpperCase() + nameKey.slice(1).toLowerCase();
+    if (CATEGORY_META[capitalizedName]) return CATEGORY_META[capitalizedName];
+    
+    if (lowerName.includes("cash") || lowerName.includes("coin")) return CATEGORY_META.Coins;
+    if (lowerName.includes("personal") || lowerName.includes("self")) return CATEGORY_META.UserCircle;
+    if (lowerName.includes("travel") || lowerName.includes("plane") || lowerName.includes("flight") || lowerName.includes("trip")) return CATEGORY_META.Plane;
+  }
+  if (cat.icon && CATEGORY_META[cat.icon]) {
+    return CATEGORY_META[cat.icon];
+  }
+  return CATEGORY_META.HelpCircle;
 };
 
 interface Member {
@@ -1079,7 +1113,7 @@ export default function GroupDetailsPage() {
                                   All Categories
                                 </button>
                                 {_uniqueCategories.map((cat: any) => {
-                                  const _M = CATEGORY_META[cat.icon] || CATEGORY_META.HelpCircle;
+                                  const _M = resolveCategoryMeta(cat);
                                   const _CI = _M.icon;
                                   return (
                                     <button key={cat.id}
@@ -1254,7 +1288,7 @@ export default function GroupDetailsPage() {
                                       {dayEvents.map((event) => {
                                         if (event.type === "EXPENSE") {
                                           const e = event as any;
-                                          const Meta = CATEGORY_META[e.category?.icon] || CATEGORY_META.HelpCircle;
+                                          const Meta = resolveCategoryMeta(e.category);
                                           const IconComponent = Meta.icon;
 
                                           return (
@@ -1438,7 +1472,7 @@ export default function GroupDetailsPage() {
 
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
                             {analytics.categoryBreakdown.map((c, i) => {
-                              const Meta = CATEGORY_META[c.icon] || CATEGORY_META.HelpCircle;
+                              const Meta = resolveCategoryMeta(c);
                               const Icon = Meta.icon;
                               return (
                                 <div key={i} className="flex items-center gap-2.5">
