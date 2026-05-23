@@ -285,6 +285,16 @@ export default function DashboardPage() {
               </div>
               <div className="text-xs text-zinc-500 group-hover:text-zinc-400 transition">{user?.email}</div>
             </Link>
+
+            {user && (
+              <Link
+                href="/profile"
+                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition flex items-center justify-center sm:hidden"
+                title={`Edit profile (${user.name})`}
+              >
+                <UserCircle className="h-4.5 w-4.5" />
+              </Link>
+            )}
             {/* Audit Export — download attr forces correct filename on all browsers incl. Safari */}
             <a
               href="/api/audit/export"
