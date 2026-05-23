@@ -3512,15 +3512,32 @@ export default function GroupDetailsPage() {
         </div>
       )}
 
-      {/* Mobile-only "+ Add Expense" Floating Action Button */}
+      {/* Mobile-only "+ Add Expense" Floating Action Button with Rotating Circular Text */}
       {!isAnyModalOpen && !group?.isArchived && (
-        <button
-          onClick={openAddExpenseModal}
-          className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-2xl overflow-hidden border border-purple-500/35 shadow-[0_8px_30px_rgba(168,85,247,0.45)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"
-          title="Add Expense"
-        >
-          <img src="/logo.png" alt="Add Expense Logo" className="h-12 w-12 object-cover" />
-        </button>
+        <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center w-20 h-20">
+          {/* Central Button */}
+          <button
+            onClick={openAddExpenseModal}
+            className="z-10 rounded-2xl overflow-hidden border border-purple-500/35 shadow-[0_8px_30px_rgba(168,85,247,0.45)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"
+            title="Add Expense"
+          >
+            <img src="/logo.png" alt="Add Expense Logo" className="h-11 w-11 object-cover" />
+          </button>
+
+          {/* Slowly Rotating Circular Text */}
+          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none animate-[spin_20s_linear_infinite]">
+            <path
+              id="circlePath"
+              d="M 50, 50 m -36, 0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0"
+              fill="none"
+            />
+            <text>
+              <textPath href="#circlePath" className="fill-purple-400/50 text-[7px] font-extrabold tracking-[0.2em] uppercase">
+                • add expense • add expense • add expense 
+              </textPath>
+            </text>
+          </svg>
+        </div>
       )}
 
       {/* CUSTOM GLASSMORPHIC DIALOG MODAL */}
