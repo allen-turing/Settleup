@@ -17,6 +17,7 @@ import {
   HelpCircle,
   TrendingUp,
   TrendingDown,
+  Check,
   CheckCircle,
   Trash2,
   Calendar,
@@ -217,7 +218,7 @@ export default function GroupDetailsPage() {
   const [invitations, setInvitations] = useState<{ id: string; email: string; invitedAt: string }[]>([]);
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [viewTab, setViewTab] = useState<"expenses" | "analytics">("expenses");
+  const [viewTab, setViewTab] = useState<"expenses" | "analytics" | "balances">("expenses");
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
   const [filterPaidById, setFilterPaidById] = useState<string | null>(null);
@@ -1060,71 +1061,275 @@ export default function GroupDetailsPage() {
     }
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const scrollToBottom = () => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  };
+
+  const sidebarContent = (
+    <div className="space-y-6">
+      {/* Invite Member Section */}
+      <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+          <UserPlus className="h-4.5 w-4.5 text-purple-400" />
+          Invite Member
+        </h3>
+
+        {inviteError && (
+          <div className="mb-3 p-2 rounded bg-red-500/15 border border-red-500/30 text-[10px] text-red-400">
+            {inviteError}
+          </div>
+        )}
+
+        {inviteSuccess && (
+          <div className="mb-3 p-2 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400">
+            Member added successfully!
+          </div>
+        )}
+
+        <form onSubmit={handleInvite} className="flex gap-2">
+          <input
+            type="email"
+            required
+            placeholder="friend@example.com"
+            value={inviteEmail}
+            onChange={(e) => {
+              setInviteEmail(e.target.value);
+              setInviteSuccess(false);
+            }}
+            disabled={inviteLoading}
+            className="flex-1 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 transition"
+          />
+          <button
+            type="submit"
+            disabled={inviteLoading}
+            className="px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold text-xs transition cursor-pointer"
+          >
+            {inviteLoading ? "..." : "Add"}
+          </button>
+        </form>
+      </div>
+
+      {/* Pending Invitations */}
+      {invitations.length > 0 && (
+        <div className="glass-card rounded-2xl p-5 shadow-xl">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+            <Mail className="h-4.5 w-4.5 text-purple-400" />
+            Pending Invitations
+          </h3>
+          <div className="space-y-2">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0">
+                <span className="text-zinc-300 truncate pr-2" title={inv.email}>
+                  {inv.email}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-semibold bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full shrink-0">
+                  Invited
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Total Group Spend Card */}
+      {analytics && (
+        <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold">Total Group Spend</p>
+            <h3 className="text-2xl font-extrabold text-white mt-1">₹{analytics.totalSpend.toFixed(2)}</h3>
+          </div>
+          <div className="p-3 bg-purple-500/10 border border-purple-500/25 rounded-xl">
+            <Coins className="h-5 w-5 text-purple-400" />
+          </div>
+        </div>
+      )}
+
+      {/* Simplified Settlement recommendations */}
+      <div className="glass-card rounded-2xl p-5 shadow-xl">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
+          <ArrowRightLeft className="h-4.5 w-4.5 text-purple-400" />
+          Simplified Settlements
+        </h3>
+
+        {simplifiedTxs.length === 0 ? (
+          <p className="text-zinc-500 text-xs text-center py-6">
+            Awesome! Everyone is fully settled. No payments are needed.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {simplifiedTxs.map((tx, idx) => (
+              <div
+                key={idx}
+                className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="text-xs">
+                  <p className="text-zinc-400">
+                    <span className="text-white font-bold">{tx.fromName}</span> owes
+                  </p>
+                  <p className="text-white font-bold mt-0.5">
+                    ₹{tx.amount.toFixed(2)} to {tx.toName}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => triggerQuickSettle(tx.fromId, tx.toId, tx.amount)}
+                  className="py-1 px-2.5 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600 hover:text-white rounded-lg font-bold text-[10px] text-purple-400 transition cursor-pointer"
+                >
+                  Record pay
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Group Balances */}
+      <div className="glass-card rounded-2xl p-5 shadow-xl">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
+          <Users className="h-4.5 w-4.5 text-purple-400" />
+          Member Balances
+        </h3>
+
+        <div className="space-y-4">
+          {balances.map((member) => (
+            <div
+              key={member.userId}
+              className="flex items-center justify-between text-xs border-b border-white/5 pb-3 last:border-0 last:pb-0 group"
+            >
+              <div className="min-w-0 pr-2">
+                <p className="text-white font-semibold truncate">{member.userName}</p>
+                <p className="text-[10px] text-zinc-500 truncate">{member.email}</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right flex-shrink-0">
+                  {member.netBalance > 0.005 ? (
+                    <p className="text-emerald-400 font-bold">Gets back ₹{member.netBalance.toFixed(2)}</p>
+                  ) : member.netBalance < -0.005 ? (
+                    <p className="text-rose-400 font-bold">Owes others ₹{Math.abs(member.netBalance).toFixed(2)}</p>
+                  ) : (
+                    <p className="text-zinc-500">Settled up</p>
+                  )}
+                  <p className="text-[9px] text-zinc-600">Paid: ₹{member.totalPaid.toFixed(0)}</p>
+                </div>
+
+                {/* Delete membership button */}
+                {currentUser && currentUser.userId !== member.userId && (
+                  <button
+                    onClick={() => handleRemoveMember(member.userId)}
+                    className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/20 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                    title="Remove Member"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-screen">
       {/* Header bar */}
       <header className="w-full border-b border-white/5 backdrop-blur-md sticky top-0 z-40 bg-zinc-950/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" />
-            </Link>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-lg font-bold text-white leading-tight truncate max-w-[160px] sm:max-w-sm">
-                  {group?.name || "Loading Group..."}
-                </h1>
-                {group && (
-                  <button
-                    onClick={openEditGroupModal}
-                    className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition cursor-pointer"
-                    title="Edit group details"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </button>
-                )}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          {/* Row 1: Back arrow, Group info, and Profile/Logout on mobile */}
+          <div className="flex items-center justify-between w-full sm:w-auto">
+            <div className="flex items-center gap-3 min-w-0">
+              <Link
+                href="/dashboard"
+                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer flex-shrink-0"
+              >
+                <ArrowLeft className="h-4.5 w-4.5" />
+              </Link>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-base sm:text-lg font-bold text-white leading-tight truncate max-w-[140px] sm:max-w-sm">
+                    {group?.name || "Loading Group..."}
+                  </h1>
+                  {group && (
+                    <button
+                      onClick={openEditGroupModal}
+                      className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition cursor-pointer"
+                      title="Edit group details"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] sm:text-xs text-zinc-500 truncate max-w-[160px] sm:max-w-sm">
+                  {group?.description || "PayPaySplit expense circle"}
+                </p>
               </div>
-              <p className="text-xs text-zinc-500 truncate max-w-[200px] sm:max-w-sm">
-                {group?.description || "PayPaySplit expense circle"}
-              </p>
+            </div>
+
+            {/* Mobile-only secondary block for Profile & Logout */}
+            <div className="flex items-center gap-2 sm:hidden">
+              {currentUser && (
+                <Link
+                  href="/profile"
+                  className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition flex items-center justify-center"
+                  title={`Edit profile (${currentUser.name})`}
+                >
+                  <UserCircle className="h-4.5 w-4.5" />
+                </Link>
+              )}
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition"
+                title="Log Out"
+              >
+                <LogOut className="h-4.5 w-4.5" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Row 2 on mobile, right-aligned flex block on desktop */}
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+            {/* Desktop-only Profile info */}
             {currentUser && (
               <Link
                 href="/profile"
-                className="text-right hidden md:block group mr-1"
+                className="text-right hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
                 title="Edit profile"
               >
-                <div className="text-[11px] font-semibold text-white group-hover:text-purple-400 transition flex items-center gap-1 justify-end">
-                  <UserCircle className="h-3 w-3 text-zinc-500 group-hover:text-purple-400 transition" />
-                  {currentUser.name}
+                <UserCircle className="h-4.5 w-4.5 text-zinc-400" />
+                <div className="text-left hidden md:block">
+                  <div className="text-[11px] font-semibold text-white leading-tight">{currentUser.name}</div>
+                  <div className="text-[9px] text-zinc-500 leading-tight">{currentUser.email}</div>
                 </div>
-                <div className="text-[9px] text-zinc-500 group-hover:text-zinc-400 transition">{currentUser.email}</div>
               </Link>
             )}
-            <button
-              onClick={openAddExpenseModal}
-              className="flex items-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Expense</span>
-              <span className="sm:hidden">Expense</span>
-            </button>
-            <button
-              onClick={openDefaultSettleModal}
-              className="flex items-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 font-semibold text-xs sm:text-sm transition cursor-pointer"
-            >
-              <ArrowRightLeft className="h-4 w-4" />
-              <span>Settle Up</span>
-            </button>
+
+            {/* Main Action Buttons: Stretch to full width on mobile, inline auto on desktop */}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 w-full sm:w-auto">
+              <button
+                onClick={openAddExpenseModal}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Expense</span>
+              </button>
+              <button
+                onClick={openDefaultSettleModal}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 font-semibold text-xs sm:text-sm transition cursor-pointer w-full sm:w-auto"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                <span>Settle Up</span>
+              </button>
+            </div>
+
+            {/* Desktop-only Logout */}
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer hidden sm:block"
               title="Log Out"
             >
               <LogOut className="h-4 w-4" />
@@ -1153,19 +1358,31 @@ export default function GroupDetailsPage() {
               {/* LEFT COLUMN: Expenses, Settlements, Analytics */}
               <div className="lg:col-span-2 space-y-6">
                 {/* View Tabs */}
-                <div className="flex border-b border-white/5 pb-px gap-6 text-sm font-semibold">
+                <div className="flex border-b border-white/5 pb-px gap-4 sm:gap-6 text-xs sm:text-sm font-semibold overflow-x-auto scrollbar-none whitespace-nowrap">
                   <button
                     onClick={() => setViewTab("expenses")}
-                    className={`pb-3 border-b-2 cursor-pointer transition ${viewTab === "expenses"
+                    className={`pb-3 border-b-2 cursor-pointer transition flex-shrink-0 ${viewTab === "expenses"
                       ? "border-purple-500 text-purple-400"
                       : "border-transparent text-zinc-400 hover:text-white"
                       }`}
                   >
                     Expenses & Payments
                   </button>
+                  
+                  {/* Balances & Settles Tab - Visible only on Mobile */}
+                  <button
+                    onClick={() => setViewTab("balances")}
+                    className={`pb-3 border-b-2 cursor-pointer transition flex-shrink-0 lg:hidden ${viewTab === "balances"
+                      ? "border-purple-500 text-purple-400"
+                      : "border-transparent text-zinc-400 hover:text-white"
+                      }`}
+                  >
+                    Balances & Settles
+                  </button>
+
                   <button
                     onClick={() => setViewTab("analytics")}
-                    className={`pb-3 border-b-2 cursor-pointer transition ${viewTab === "analytics"
+                    className={`pb-3 border-b-2 cursor-pointer transition flex-shrink-0 ${viewTab === "analytics"
                       ? "border-purple-500 text-purple-400"
                       : "border-transparent text-zinc-400 hover:text-white"
                       }`}
@@ -1174,7 +1391,13 @@ export default function GroupDetailsPage() {
                   </button>
                 </div>
 
-                {viewTab === "expenses" ? (() => {
+                {viewTab === "balances" && (
+                  <div className="lg:hidden space-y-6">
+                    {sidebarContent}
+                  </div>
+                )}
+
+                {viewTab === "expenses" && (() => {
                   // Build filter derived state
                   const _uniqueCategories = Array.from(new Map(
                     expenses.filter((e) => e.category).map((e) => [e.category!.id, e.category!])
@@ -1216,25 +1439,25 @@ export default function GroupDetailsPage() {
                     <div className="space-y-4">
                       {/* Overall Stats Card */}
                       {expenses.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
-                          <div className="glass-card rounded-2xl p-4 flex flex-col justify-between border border-white/5 bg-zinc-950/20 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-3 opacity-10 text-emerald-400 group-hover:scale-110 transition-transform duration-300">
-                              <Coins className="h-8 w-8" />
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4 animate-fade-in">
+                          <div className="glass-card rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-white/5 bg-zinc-950/20 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                              <Coins className="h-6 w-6 sm:h-8 sm:w-8" />
                             </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                              {_isFiltered ? "Filtered Total Spend" : "Group Total Spend"}
+                            <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-zinc-500 truncate">
+                              {_isFiltered ? "Filtered Spend" : "Group Total Spend"}
                             </span>
-                            <span className={`text-xl font-extrabold mt-1.5 ${_isFiltered ? "text-purple-400 font-extrabold" : "text-white font-extrabold"}`}>
+                            <span className={`text-[15px] xs:text-base sm:text-xl font-extrabold mt-1 truncate ${_isFiltered ? "text-purple-400 font-extrabold" : "text-white font-extrabold"}`}>
                               ₹{filteredTotalSpent.toFixed(2)}
                             </span>
                           </div>
 
-                          <div className="glass-card rounded-2xl p-4 flex flex-col justify-between border border-white/5 bg-zinc-950/20 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-3 opacity-10 text-blue-400 group-hover:scale-110 transition-transform duration-300">
-                              <CreditCard className="h-8 w-8" />
+                          <div className="glass-card rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-white/5 bg-zinc-950/20 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 text-blue-400 group-hover:scale-110 transition-transform duration-300">
+                              <CreditCard className="h-6 w-6 sm:h-8 sm:w-8" />
                             </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Activity Count</span>
-                            <span className="text-xl font-extrabold text-white mt-1.5">
+                            <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-zinc-500 truncate">Activity Count</span>
+                            <span className="text-[15px] xs:text-base sm:text-xl font-extrabold text-white mt-1 truncate">
                               {_isFiltered ? `${_filteredExpenses.length} of ${expenses.length}` : `${expenses.length}`} {expenses.length === 1 ? "Item" : "Items"}
                             </span>
                           </div>
@@ -2174,7 +2397,9 @@ export default function GroupDetailsPage() {
                       )}
                     </div>
                   );
-                })() : (
+                })()}
+
+                {viewTab === "analytics" && (
                   <div className="space-y-6">
                     {/* Visual Charts using HTML/CSS */}
                     {analytics && analytics.totalSpend > 0 ? (
@@ -2291,155 +2516,8 @@ export default function GroupDetailsPage() {
               </div>
 
               {/* RIGHT COLUMN: Balances, Settlements Suggestions, Add Member */}
-              <div className="space-y-6">
-                {/* Invite Member Section */}
-                <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden">
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-                    <UserPlus className="h-4.5 w-4.5 text-purple-400" />
-                    Invite Member
-                  </h3>
-
-                  {inviteError && (
-                    <div className="mb-3 p-2 rounded bg-red-500/15 border border-red-500/30 text-[10px] text-red-400">
-                      {inviteError}
-                    </div>
-                  )}
-
-                  {inviteSuccess && (
-                    <div className="mb-3 p-2 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400">
-                      Member added successfully!
-                    </div>
-                  )}
-
-                  <form onSubmit={handleInvite} className="flex gap-2">
-                    <input
-                      type="email"
-                      required
-                      placeholder="friend@example.com"
-                      value={inviteEmail}
-                      onChange={(e) => {
-                        setInviteEmail(e.target.value);
-                        setInviteSuccess(false);
-                      }}
-                      disabled={inviteLoading}
-                      className="flex-1 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 transition"
-                    />
-                    <button
-                      type="submit"
-                      disabled={inviteLoading}
-                      className="px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold text-xs transition cursor-pointer"
-                    >
-                      {inviteLoading ? "..." : "Add"}
-                    </button>
-                  </form>
-                </div>
-
-                {/* Pending Invitations */}
-                {invitations.length > 0 && (
-                  <div className="glass-card rounded-2xl p-5 shadow-xl">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-                      <Mail className="h-4.5 w-4.5 text-purple-400" />
-                      Pending Invitations
-                    </h3>
-                    <div className="space-y-2">
-                      {invitations.map((inv) => (
-                        <div key={inv.id} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0">
-                          <span className="text-zinc-300 truncate pr-2" title={inv.email}>
-                            {inv.email}
-                          </span>
-                          <span className="text-[10px] text-zinc-500 font-semibold bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full shrink-0">
-                            Invited
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Simplified Settlement recommendations */}
-                <div className="glass-card rounded-2xl p-5 shadow-xl">
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
-                    <ArrowRightLeft className="h-4.5 w-4.5 text-purple-400" />
-                    Simplified Settlements
-                  </h3>
-
-                  {simplifiedTxs.length === 0 ? (
-                    <p className="text-zinc-500 text-xs text-center py-6">
-                      Awesome! Everyone is fully settled. No payments are needed.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {simplifiedTxs.map((tx, idx) => (
-                        <div
-                          key={idx}
-                          className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                        >
-                          <div className="text-xs">
-                            <p className="text-zinc-400">
-                              <span className="text-white font-bold">{tx.fromName}</span> owes
-                            </p>
-                            <p className="text-white font-bold mt-0.5">
-                              ₹{tx.amount.toFixed(2)} to {tx.toName}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => triggerQuickSettle(tx.fromId, tx.toId, tx.amount)}
-                            className="py-1 px-2.5 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600 hover:text-white rounded-lg font-bold text-[10px] text-purple-400 transition cursor-pointer"
-                          >
-                            Record pay
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Group Balances */}
-                <div className="glass-card rounded-2xl p-5 shadow-xl">
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
-                    <Users className="h-4.5 w-4.5 text-purple-400" />
-                    Member Balances
-                  </h3>
-
-                  <div className="space-y-4">
-                    {balances.map((member) => (
-                      <div
-                        key={member.userId}
-                        className="flex items-center justify-between text-xs border-b border-white/5 pb-3 last:border-0 last:pb-0 group"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className="text-white font-semibold truncate">{member.userName}</p>
-                          <p className="text-[10px] text-zinc-500 truncate">{member.email}</p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="text-right flex-shrink-0">
-                            {member.netBalance > 0.005 ? (
-                              <p className="text-emerald-400 font-bold">Gets back ₹{member.netBalance.toFixed(2)}</p>
-                            ) : member.netBalance < -0.005 ? (
-                              <p className="text-rose-400 font-bold">Owes others ₹{Math.abs(member.netBalance).toFixed(2)}</p>
-                            ) : (
-                              <p className="text-zinc-500">Settled up</p>
-                            )}
-                            <p className="text-[9px] text-zinc-600">Paid: ₹{member.totalPaid.toFixed(0)}</p>
-                          </div>
-
-                          {/* Delete membership button (only for members other than the creator, but we can do safe delete since the balance is verified!) */}
-                          {currentUser && currentUser.userId !== member.userId && (
-                            <button
-                              onClick={() => handleRemoveMember(member.userId)}
-                              className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/20 opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                              title="Remove Member"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="hidden lg:block space-y-6">
+                {sidebarContent}
               </div>
             </div>
           </div>
@@ -2634,52 +2712,96 @@ export default function GroupDetailsPage() {
               {expSplitType !== "SELF" && (
                 <div className="space-y-3 border-t border-white/5 pt-4">
                   <p className="text-xs font-semibold text-zinc-400 mb-2">Split Participants Details</p>
-                  <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
-                    {members.map((m) => {
-                      const status = expParticipants[m.userId] || { checked: false, value: "" };
-                      return (
-                        <div key={m.userId} className="flex items-center justify-between gap-4 text-xs">
-                          <label className="flex items-center gap-2 font-semibold text-white select-none cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={status.checked}
-                              onChange={(e) => handleParticipantChange(m.userId, e.target.checked)}
-                              className="rounded accent-purple-600 h-4 w-4 bg-zinc-900 border-zinc-800"
-                            />
-                            <span>{m.name}</span>
-                          </label>
+                  
+                  {expSplitType === "EQUAL" ? (
+                    <div className="grid grid-cols-2 gap-2.5 max-h-[160px] overflow-y-auto pr-1">
+                      {members.map((m) => {
+                        const status = expParticipants[m.userId] || { checked: false, value: "" };
+                        return (
+                          <button
+                            key={m.userId}
+                            type="button"
+                            onClick={() => handleParticipantChange(m.userId, !status.checked)}
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition select-none cursor-pointer ${
+                              status.checked
+                                ? "bg-purple-600/10 border-purple-500/35 text-white"
+                                : "bg-zinc-900/40 border-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/70"
+                            }`}
+                          >
+                            <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border transition ${
+                              status.checked
+                                ? "bg-purple-600 border-purple-500 text-white"
+                                : "border-zinc-700 bg-zinc-950"
+                            }`}>
+                              {status.checked && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate leading-none">{m.name}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                      {members.map((m) => {
+                        const status = expParticipants[m.userId] || { checked: false, value: "" };
+                        return (
+                          <div
+                            key={m.userId}
+                            className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition ${
+                              status.checked
+                                ? "bg-zinc-900/80 border-purple-500/15"
+                                : "bg-zinc-900/20 border-zinc-800/40 opacity-70"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleParticipantChange(m.userId, !status.checked)}
+                              className="flex items-center gap-2.5 text-left min-w-0 flex-1 select-none cursor-pointer"
+                            >
+                              <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border transition ${
+                                status.checked
+                                  ? "bg-purple-600 border-purple-500 text-white"
+                                  : "border-zinc-700 bg-zinc-950"
+                              }`}>
+                                {status.checked && <Check className="h-3 w-3 stroke-[3]" />}
+                              </div>
+                              <span className="text-xs font-bold text-white truncate">{m.name}</span>
+                            </button>
 
-                          {status.checked && expSplitType !== "EQUAL" && (
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                required
-                                placeholder={
-                                  expSplitType === "PERCENTAGE"
+                            {status.checked && (
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  required
+                                  placeholder={
+                                    expSplitType === "PERCENTAGE"
+                                      ? "%"
+                                      : expSplitType === "SHARES"
+                                        ? "Shares"
+                                        : "INR"
+                                  }
+                                  value={status.value}
+                                  onChange={(e) => handleParticipantChange(m.userId, true, cleanNumberString(e.target.value))}
+                                  onKeyDown={handleNumericKeyDown}
+                                  className="w-18 px-2 py-1 bg-zinc-950 border border-zinc-800 rounded-lg text-center text-xs font-semibold text-white focus:border-purple-500/50 outline-none"
+                                />
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase min-w-[32px]">
+                                  {expSplitType === "PERCENTAGE"
                                     ? "%"
                                     : expSplitType === "SHARES"
-                                      ? "Shares"
-                                      : "INR"
-                                }
-                                value={status.value}
-                                onChange={(e) => handleParticipantChange(m.userId, true, cleanNumberString(e.target.value))}
-                                onKeyDown={handleNumericKeyDown}
-                                className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-center text-xs text-white"
-                              />
-                              <span className="text-zinc-500 font-semibold">
-                                {expSplitType === "PERCENTAGE"
-                                  ? "%"
-                                  : expSplitType === "SHARES"
-                                    ? "shares"
-                                    : "INR"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                                      ? "shs"
+                                      : "INR"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2954,6 +3076,26 @@ export default function GroupDetailsPage() {
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Scroll to Top / Scroll to Bottom Floating Buttons */}
+      {viewTab === "expenses" && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2.5">
+          <button
+            onClick={scrollToTop}
+            className="p-3 rounded-full bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-zinc-400 hover:text-white active:bg-zinc-900 shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
+            title="Scroll to Top"
+          >
+            <ChevronUp className="h-5 w-5" />
+          </button>
+          <button
+            onClick={scrollToBottom}
+            className="p-3 rounded-full bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-zinc-400 hover:text-white active:bg-zinc-900 shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
+            title="Scroll to Bottom"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </button>
         </div>
       )}
     </div>
