@@ -40,7 +40,9 @@ import {
   ChevronUp,
   Search,
   Share2,
-  MessageCircle
+  MessageCircle,
+  Archive,
+  ArchiveRestore
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -211,7 +213,7 @@ export default function GroupDetailsPage() {
   const groupId = params.id as string;
 
   const [currentUser, setCurrentUser] = useState<{ id: string; userId: string; name: string; email: string } | null>(null);
-  const [group, setGroup] = useState<{ id: string; name: string; description: string } | null>(null);
+  const [group, setGroup] = useState<{ id: string; name: string; description: string; isArchived: boolean; createdById: string } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
@@ -1074,6 +1076,63 @@ export default function GroupDetailsPage() {
     }
   };
 
+  const handleToggleArchiveSelf = async () => {
+    if (!group) return;
+    try {
+      const res = await fetch(`/api/groups/${groupId}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: !group.isArchived }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to toggle archive status.");
+      }
+
+      setIsEditGroupModalOpen(false);
+      // Reload group details
+      await fetchGroupDetails();
+    } catch (err: any) {
+      alert(err.message || "An error occurred.");
+    }
+  };
+
+  const handleDeleteGroupSelf = async () => {
+    if (!group) return;
+    const isCreator = group.createdById === currentUser?.id;
+    const actionText = isCreator ? "delete this group for everyone" : "leave this group";
+    
+    if (isCreator) {
+      const confirmText = prompt(`Are you absolutely sure you want to delete "${group.name}" for all members? All expenses and settlements will be permanently deleted. Type "${group.name}" to confirm:`);
+      if (confirmText !== group.name) {
+        alert("Group name did not match. Deletion cancelled.");
+        return;
+      }
+    } else {
+      if (!confirm(`Are you sure you want to leave "${group.name}"? You can only leave if you are fully settled.`)) {
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/groups/${groupId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to ${actionText}.`);
+      }
+
+      alert(data.message || `Successfully completed action.`);
+      router.push("/dashboard");
+    } catch (err: any) {
+      alert(err.message || "An error occurred.");
+    }
+  };
+
   // Pre-fill settlement and open modal when clicking "Settle Up" on a debt recommendation
   const triggerQuickSettle = (fromId: string, toId: string, amount: number) => {
     setSettlePayer(fromId);
@@ -1143,46 +1202,48 @@ export default function GroupDetailsPage() {
   const sidebarContent = (
     <div className="space-y-6">
       {/* Invite Member Section */}
-      <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-          <UserPlus className="h-4.5 w-4.5 text-purple-400" />
-          Invite Member
-        </h3>
+      {!group?.isArchived && (
+        <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+            <UserPlus className="h-4.5 w-4.5 text-purple-400" />
+            Invite Member
+          </h3>
 
-        {inviteError && (
-          <div className="mb-3 p-2 rounded bg-red-500/15 border border-red-500/30 text-[10px] text-red-400">
-            {inviteError}
-          </div>
-        )}
+          {inviteError && (
+            <div className="mb-3 p-2 rounded bg-red-500/15 border border-red-500/30 text-[10px] text-red-400">
+              {inviteError}
+            </div>
+          )}
 
-        {inviteSuccess && (
-          <div className="mb-3 p-2 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400">
-            Member added successfully!
-          </div>
-        )}
+          {inviteSuccess && (
+            <div className="mb-3 p-2 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400">
+              Member added successfully!
+            </div>
+          )}
 
-        <form onSubmit={handleInvite} className="flex gap-2">
-          <input
-            type="email"
-            required
-            placeholder="friend@example.com"
-            value={inviteEmail}
-            onChange={(e) => {
-              setInviteEmail(e.target.value);
-              setInviteSuccess(false);
-            }}
-            disabled={inviteLoading}
-            className="flex-1 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 transition"
-          />
-          <button
-            type="submit"
-            disabled={inviteLoading}
-            className="px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold text-xs transition cursor-pointer"
-          >
-            {inviteLoading ? "..." : "Add"}
-          </button>
-        </form>
-      </div>
+          <form onSubmit={handleInvite} className="flex gap-2">
+            <input
+              type="email"
+              required
+              placeholder="friend@example.com"
+              value={inviteEmail}
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                setInviteSuccess(false);
+              }}
+              disabled={inviteLoading}
+              className="flex-1 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 transition"
+            />
+            <button
+              type="submit"
+              disabled={inviteLoading}
+              className="px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold text-xs transition cursor-pointer"
+            >
+              {inviteLoading ? "..." : "Add"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Pending Invitations */}
       {invitations.length > 0 && (
@@ -1246,12 +1307,14 @@ export default function GroupDetailsPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => triggerQuickSettle(tx.fromId, tx.toId, tx.amount)}
-                  className="py-1 px-2.5 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600 hover:text-white rounded-lg font-bold text-[10px] text-purple-400 transition cursor-pointer"
-                >
-                  Record pay
-                </button>
+                {!group?.isArchived && (
+                  <button
+                    onClick={() => triggerQuickSettle(tx.fromId, tx.toId, tx.amount)}
+                    className="py-1 px-2.5 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600 hover:text-white rounded-lg font-bold text-[10px] text-purple-400 transition cursor-pointer"
+                  >
+                    Record pay
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1389,15 +1452,17 @@ export default function GroupDetailsPage() {
             )}
 
             {/* Main Action Buttons: Hidden on mobile (since FAB is present), inline auto on desktop */}
-            <div className="hidden sm:flex sm:items-center sm:gap-3">
-              <button
-                onClick={openAddExpenseModal}
-                className="flex items-center justify-center gap-1.5 py-2 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Expense</span>
-              </button>
-            </div>
+            {!group?.isArchived && (
+              <div className="hidden sm:flex sm:items-center sm:gap-3">
+                <button
+                  onClick={openAddExpenseModal}
+                  className="flex items-center justify-center gap-1.5 py-2 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Expense</span>
+                </button>
+              </div>
+            )}
 
             {/* Desktop-only Logout */}
             <button
@@ -1423,6 +1488,20 @@ export default function GroupDetailsPage() {
             {error && (
               <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/30 text-sm text-red-400">
                 {error}
+              </div>
+            )}
+
+            {group?.isArchived && (
+              <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-4.5 flex items-start gap-3 shadow-lg backdrop-blur-md">
+                <div className="h-9 w-9 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0">
+                  <Archive className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-purple-200">This Circle is Archived</h3>
+                  <p className="text-xs text-purple-100/75 mt-0.5 leading-relaxed">
+                    This group is currently archived for you. You can review all transaction records, balances, and analytics as read-only. To make changes or log new items, unarchive this group in the Settings or Dashboard.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1926,7 +2005,9 @@ export default function GroupDetailsPage() {
                           
                           <h4 className="text-white font-semibold text-base mb-1">No Activity Logged</h4>
                           <p className="text-zinc-400 text-sm max-w-sm mb-6 leading-relaxed">
-                            There are no expenses or settlement payments logged in this group yet. Click &quot;Add Expense&quot; to log your first transaction!
+                            {group?.isArchived 
+                              ? "There are no expenses or settlement payments logged in this circle. Unarchive this group to get started!"
+                              : "There are no expenses or settlement payments logged in this group yet. Click \"Add Expense\" to log your first transaction!"}
                           </p>
 
                           {/* Quick Invite & Join Card (for new groups to onboard friends instantly!) */}
@@ -3205,6 +3286,31 @@ export default function GroupDetailsPage() {
                 )}
               </button>
             </form>
+
+            {/* Archive / Delete settings block */}
+            <div className="border-t border-white/5 my-4.5 pt-4.5 space-y-3">
+              <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Group Management</h4>
+              
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleToggleArchiveSelf}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-zinc-900/60 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  <Archive className="h-4 w-4 text-purple-400" />
+                  <span>{group?.isArchived ? "Unarchive Circle" : "Archive Circle"}</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleDeleteGroupSelf}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-red-950/20 border border-red-900/30 text-red-400 hover:bg-red-900 hover:text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>{group?.createdById === currentUser?.id ? "Delete Circle" : "Leave Circle"}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3356,7 +3462,7 @@ export default function GroupDetailsPage() {
       )}
 
       {/* Mobile-only "+ Add Expense" Floating Action Button */}
-      {!isAnyModalOpen && (
+      {!isAnyModalOpen && !group?.isArchived && (
         <button
           onClick={openAddExpenseModal}
           className="sm:hidden fixed bottom-6 right-6 z-50 p-4 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 border border-purple-400/20 text-white shadow-[0_8px_30px_rgba(168,85,247,0.4)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"

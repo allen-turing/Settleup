@@ -102,6 +102,7 @@ export async function GET(
           description: group.description,
           createdAt: group.createdAt,
           createdById: group.createdById,
+          isArchived: membership.isArchived,
         },
         members: group.members.map((m) => ({
           userId: m.user.id,
@@ -189,6 +190,109 @@ export async function PATCH(
     console.error("Update group error:", error);
     return NextResponse.json(
       { error: "An error occurred updating the group." },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/groups/[id] - Delete group (creator) or Leave group (member)
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const payload = await getCurrentUser();
+    if (!payload) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id: groupId } = await params;
+
+    // Verify if the current user is a member of the group
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId,
+          userId: payload.userId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Access denied. You are not a member of this group." },
+        { status: 403 }
+      );
+    }
+
+    // Fetch the group to check creator status
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        expenses: {
+          include: {
+            participants: true,
+          },
+        },
+        settlements: true,
+      },
+    });
+
+    if (!group) {
+      return NextResponse.json({ error: "Group not found." }, { status: 404 });
+    }
+
+    const isCreator = group.createdById === payload.userId;
+
+    if (isCreator) {
+      // Creator deletes the entire group
+      await prisma.group.delete({
+        where: { id: groupId },
+      });
+
+      return NextResponse.json(
+        { message: "Group deleted successfully for all members." },
+        { status: 200 }
+      );
+    } else {
+      // Member tries to leave. Must be settled up!
+      const memberBalances = calculateBalances(group.members, group.expenses, group.settlements);
+      const userBalance = memberBalances.find((b) => b.userId === payload.userId);
+      const netBalance = userBalance ? userBalance.netBalance : 0;
+
+      if (Math.abs(netBalance) > 0.005) {
+        return NextResponse.json(
+          { error: `You cannot leave this group because you have outstanding balances (₹${netBalance.toFixed(2)}). Please settle up first!` },
+          { status: 400 }
+        );
+      }
+
+      // Delete this member's group membership
+      await prisma.groupMember.delete({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: payload.userId,
+          },
+        },
+      });
+
+      return NextResponse.json(
+        { message: "You have successfully left the group." },
+        { status: 200 }
+      );
+    }
+  } catch (error: any) {
+    console.error("Delete/leave group error:", error);
+    return NextResponse.json(
+      { error: "An error occurred deleting or leaving the group." },
       { status: 500 }
     );
   }

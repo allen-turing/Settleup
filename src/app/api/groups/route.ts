@@ -38,13 +38,47 @@ export async function GET() {
       },
     });
 
-    const groupsWithBalances = memberships.map((m) => {
+    const groupsWithBalances = [];
+
+    for (const m of memberships) {
       const g = m.group;
       // Calculate balances for this group
       const memberBalances = calculateBalances(g.members, g.expenses, g.settlements);
       const userBalance = memberBalances.find((b) => b.userId === payload.userId);
 
-      return {
+      // Check if the group is fully settled (every member has exactly 0 balance)
+      const isFullySettled = memberBalances.every((b) => Math.abs(b.netBalance) < 0.005);
+      
+      let isArchived = m.isArchived;
+
+      if (isFullySettled && !isArchived) {
+        // Find last activity date: max(last expense date, last settlement date, group.createdAt)
+        let lastActivityDate = new Date(g.createdAt).getTime();
+        
+        g.expenses.forEach((e) => {
+          const t = new Date(e.expenseDate).getTime();
+          if (t > lastActivityDate) lastActivityDate = t;
+        });
+        
+        g.settlements.forEach((s) => {
+          const t = new Date(s.settlementDate).getTime();
+          if (t > lastActivityDate) lastActivityDate = t;
+        });
+
+        const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        if (now - lastActivityDate > oneWeekMs) {
+          // Auto-archive for ALL members of this group in the database
+          await prisma.groupMember.updateMany({
+            where: { groupId: g.id },
+            data: { isArchived: true }
+          });
+          isArchived = true;
+        }
+      }
+
+      groupsWithBalances.push({
         id: g.id,
         name: g.name,
         description: g.description,
@@ -54,8 +88,9 @@ export async function GET() {
         userNetBalance: userBalance ? userBalance.netBalance : 0,
         userTotalPaid: userBalance ? userBalance.totalPaid : 0,
         userTotalOwed: userBalance ? userBalance.totalOwed : 0,
-      };
-    });
+        isArchived: isArchived,
+      });
+    }
 
     return NextResponse.json({ groups: groupsWithBalances }, { status: 200 });
   } catch (error: any) {

@@ -42,11 +42,12 @@ model Group {
 }
 
 model GroupMember {
-  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  groupId  String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   String
-  joinedAt DateTime @default(now())
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId    String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  joinedAt   DateTime @default(now())
+  isArchived Boolean  @default(false)
 
   @@id([groupId, userId])
 }

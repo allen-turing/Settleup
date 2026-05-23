@@ -18,7 +18,10 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
-  UserCircle
+  UserCircle,
+  Archive,
+  ArchiveRestore,
+  Trash2
 } from "lucide-react";
 
 interface GroupSummary {
@@ -30,6 +33,8 @@ interface GroupSummary {
   userNetBalance: number;
   userTotalPaid: number;
   userTotalOwed: number;
+  isArchived: boolean;
+  createdById: string;
 }
 
 interface UserProfile {
@@ -60,6 +65,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expenseNotification, setExpenseNotification] = useState<ExpenseUpdateNotification | null>(null);
+
+  // Group Archive and Delete states
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isCreatorOfDeleting, setIsCreatorOfDeleting] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Create Group Form States
   const [newGroupName, setNewGroupName] = useState("");
@@ -190,13 +203,62 @@ export default function DashboardPage() {
     }
   };
 
-  // Calculate dynamic summary stats
+  const handleToggleArchive = async (groupId: string, currentArchiveState: boolean) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: !currentArchiveState }),
+      });
 
-  const totalOwedMe = groups
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to toggle archive status.");
+      }
+
+      // Refresh dashboard data
+      await fetchDashboardData();
+    } catch (err: any) {
+      alert(err.message || "An error occurred.");
+    }
+  };
+
+  const handleDeleteGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deletingGroupId) return;
+    setDeleteError("");
+    setDeleteLoading(true);
+
+    try {
+      const res = await fetch(`/api/groups/${deletingGroupId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete/leave group.");
+      }
+
+      setDeletingGroupId(null);
+      // Refresh dashboard data
+      await fetchDashboardData();
+    } catch (err: any) {
+      setDeleteError(err.message || "An error occurred.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Calculate dynamic summary stats over active groups only
+  const activeGroups = groups.filter((g) => !g.isArchived);
+  const archivedGroups = groups.filter((g) => g.isArchived);
+
+  const totalOwedMe = activeGroups
     .filter((g) => g.userNetBalance > 0)
     .reduce((sum, g) => sum + g.userNetBalance, 0);
 
-  const totalIOwe = groups
+  const totalIOwe = activeGroups
     .filter((g) => g.userNetBalance < 0)
     .reduce((sum, g) => sum + Math.abs(g.userNetBalance), 0);
 
@@ -361,40 +423,106 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Groups listing column */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     <Activity className="h-5 w-5 text-purple-400" />
                     My Groups & Trips
                   </h3>
-                  <span className="text-xs text-zinc-500 bg-zinc-900 px-2.5 py-1 rounded-full border border-zinc-800">
-                    {groups.length} active
+                  <span className="text-xs text-zinc-500 bg-zinc-900 px-2.5 py-1 rounded-full border border-zinc-800 self-start sm:self-auto">
+                    {activeGroups.length} active / {archivedGroups.length} archived
                   </span>
                 </div>
 
-                {groups.length === 0 ? (
+                {/* Tab Navigator */}
+                <div className="flex border-b border-white/5 gap-4 text-sm font-semibold mb-2">
+                  <button
+                    onClick={() => setActiveTab("active")}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === "active"
+                        ? "border-purple-500 text-white"
+                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    Active Circles
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-zinc-800">
+                      {activeGroups.length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("archived")}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === "archived"
+                        ? "border-purple-500 text-white"
+                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    Archived Circles
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-zinc-800">
+                      {archivedGroups.length}
+                    </span>
+                  </button>
+                </div>
+
+                {activeTab === "active" && activeGroups.length === 0 ? (
                   <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
                     <div className="h-14 w-14 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4 animate-pulse">
                       <Users className="h-7 w-7" />
                     </div>
-                    <h4 className="text-white font-semibold text-base mb-1">No Groups Yet</h4>
+                    <h4 className="text-white font-semibold text-base mb-1">No Active Groups</h4>
                     <p className="text-zinc-400 text-sm max-w-sm mb-6">
                       Get started by creating a group for flat bills, office lunches, or trips with friends using the form!
                     </p>
                   </div>
+                ) : activeTab === "archived" && archivedGroups.length === 0 ? (
+                  <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
+                    <div className="h-14 w-14 rounded-full bg-zinc-800/10 flex items-center justify-center text-zinc-500 mb-4 border border-zinc-800">
+                      <Archive className="h-7 w-7 text-zinc-600" />
+                    </div>
+                    <h4 className="text-zinc-400 font-semibold text-base mb-1">No Archived Groups</h4>
+                    <p className="text-zinc-500 text-sm max-w-sm">
+                      Groups that you archive or groups that are fully settled for more than a week will appear here.
+                    </p>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {groups.map((group) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
+                    {(activeTab === "active" ? activeGroups : archivedGroups).map((group) => (
                       <Link
                         key={group.id}
                         href={`/groups/${group.id}`}
-                        className="glass-card rounded-2xl p-5 flex flex-col justify-between hover:scale-[1.02] cursor-pointer group"
+                        className="glass-card rounded-2xl p-5 flex flex-col justify-between hover:scale-[1.02] cursor-pointer group relative overflow-hidden"
                       >
                         <div className="space-y-2">
-                          <div className="flex justify-between items-start">
-                            <h4 className="text-white font-bold group-hover:text-purple-300 transition-colors text-base truncate">
+                          <div className="flex justify-between items-start gap-2 min-w-0">
+                            <h4 className="text-white font-bold group-hover:text-purple-300 transition-colors text-base truncate flex-1">
                               {group.name}
                             </h4>
-                            <ChevronRight className="h-4 w-4 text-zinc-500 group-hover:text-purple-400 transition" />
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleToggleArchive(group.id, group.isArchived);
+                                }}
+                                className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition"
+                                title={group.isArchived ? "Unarchive Group" : "Archive Group"}
+                              >
+                                {group.isArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setDeletingGroupId(group.id);
+                                  setDeleteConfirmName("");
+                                  setIsCreatorOfDeleting(group.createdById === user?.id);
+                                  setDeleteError("");
+                                }}
+                                className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-white/5 transition"
+                                title={group.createdById === user?.id ? "Delete Group" : "Leave Group"}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                           <p className="text-zinc-400 text-xs line-clamp-2 h-8 leading-relaxed">
                             {group.description || "No description provided."}
@@ -406,6 +534,11 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-1.5 text-zinc-500">
                             <Users className="h-3.5 w-3.5" />
                             <span>{group.memberCount} members</span>
+                            {group.isArchived && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold uppercase tracking-wider">
+                                Archived
+                              </span>
+                            )}
                           </div>
 
                           <div className="text-right">
@@ -418,7 +551,7 @@ export default function DashboardPage() {
                                 -₹{Math.abs(group.userNetBalance).toFixed(2)}
                               </span>
                             ) : (
-                              <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded">
+                              <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
                                 Settled
                               </span>
                             )}
@@ -573,6 +706,90 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* DELETE / LEAVE CONFIRMATION MODAL */}
+      {deletingGroupId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card rounded-2xl w-full max-w-md p-6 relative animate-zoom-in">
+            <button
+              onClick={() => setDeletingGroupId(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {isCreatorOfDeleting ? "Delete Group" : "Leave Group"}
+                </h3>
+                <p className="text-xs text-zinc-500">
+                  {isCreatorOfDeleting 
+                    ? "This will delete the group entirely for all members."
+                    : "This will remove you from this group."}
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-xs text-red-400 animate-fade-in">
+                {deleteError}
+              </div>
+            )}
+
+            <form onSubmit={handleDeleteGroup} className="space-y-4">
+              {isCreatorOfDeleting && (
+                <div>
+                  <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
+                    Warning: This action is permanent and cannot be undone. All expenses and settlements logged in this circle will be deleted forever.
+                  </p>
+                  <label className="block text-[10px] text-zinc-500 uppercase tracking-wider mb-2 font-bold">
+                    Type the name of the group to confirm:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Group name"
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 transition outline-none focus:border-red-500/50"
+                  />
+                </div>
+              )}
+
+              {!isCreatorOfDeleting && (
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Are you sure you want to leave this circle? You can only leave if your net outstanding balance in this group is exactly ₹0.00.
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingGroupId(null)}
+                  className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={deleteLoading || (isCreatorOfDeleting && deleteConfirmName !== groups.find(g => g.id === deletingGroupId)?.name)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center min-w-[70px]"
+                >
+                  {deleteLoading ? (
+                    <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    isCreatorOfDeleting ? "Delete" : "Leave"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
