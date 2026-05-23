@@ -1038,6 +1038,28 @@ export default function GroupDetailsPage() {
     }));
   };
 
+  const handleNumericKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, tab, escape, enter, and . (decimal point)
+    // Also allow Ctrl+A, Ctrl+C, Ctrl+V, Cmd+A, Cmd+C, Cmd+V, arrow keys, etc.
+    if (
+      ["Backspace", "Delete", "Tab", "Escape", "Enter", ".", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) ||
+      (e.key === "a" && (e.ctrlKey === true || e.metaKey === true)) ||
+      (e.key === "c" && (e.ctrlKey === true || e.metaKey === true)) ||
+      (e.key === "v" && (e.ctrlKey === true || e.metaKey === true)) ||
+      (e.key === "x" && (e.ctrlKey === true || e.metaKey === true))
+    ) {
+      // If they are entering a second decimal point, prevent it
+      if (e.key === "." && e.currentTarget.value.includes(".")) {
+        e.preventDefault();
+      }
+      return;
+    }
+    // Block anything else that is not a digit (0-9)
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-screen">
       {/* Header bar */}
@@ -2474,12 +2496,13 @@ export default function GroupDetailsPage() {
                   </label>
                   <input
                     id="expAmount"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     required
                     placeholder="0.00"
                     value={expAmount}
-                    onChange={(e) => setExpAmount(e.target.value)}
+                    onChange={(e) => setExpAmount(cleanNumberString(e.target.value))}
+                    onKeyDown={handleNumericKeyDown}
                     className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white"
                   />
                 </div>
@@ -2629,8 +2652,8 @@ export default function GroupDetailsPage() {
                           {status.checked && expSplitType !== "EQUAL" && (
                             <div className="flex items-center gap-1.5">
                               <input
-                                type="number"
-                                step="any"
+                                type="text"
+                                inputMode="decimal"
                                 required
                                 placeholder={
                                   expSplitType === "PERCENTAGE"
@@ -2640,7 +2663,8 @@ export default function GroupDetailsPage() {
                                       : "INR"
                                 }
                                 value={status.value}
-                                onChange={(e) => handleParticipantChange(m.userId, true, e.target.value)}
+                                onChange={(e) => handleParticipantChange(m.userId, true, cleanNumberString(e.target.value))}
+                                onKeyDown={handleNumericKeyDown}
                                 className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-center text-xs text-white"
                               />
                               <span className="text-zinc-500 font-semibold">
@@ -2804,12 +2828,13 @@ export default function GroupDetailsPage() {
                   </label>
                   <input
                     id="settleAmount"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     required
                     placeholder="0.00"
                     value={settleAmount}
-                    onChange={(e) => setSettleAmount(e.target.value)}
+                    onChange={(e) => setSettleAmount(cleanNumberString(e.target.value))}
+                    onKeyDown={handleNumericKeyDown}
                     className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white"
                   />
                 </div>
@@ -2828,6 +2853,15 @@ export default function GroupDetailsPage() {
                   />
                 </div>
               </div>
+
+              {settleAmount && parseFloat(settleAmount) > 0 && (
+                <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl space-y-1 animate-fade-in">
+                  <p className="text-[9px] uppercase tracking-wider text-purple-400 font-bold">Amount in Words</p>
+                  <p className="text-xs text-white font-semibold italic selection:bg-purple-500/30">
+                    {toRupeesInWords(settleAmount)}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label htmlFor="settleNote" className="block text-xs font-semibold text-zinc-400 mb-1.5">
@@ -2924,4 +2958,77 @@ export default function GroupDetailsPage() {
       )}
     </div>
   );
+}
+
+function cleanNumberString(val: string): string {
+  // Allow digits and at most one decimal point
+  let clean = val.replace(/[^0-9.]/g, '');
+  const parts = clean.split('.');
+  if (parts.length > 2) {
+    clean = parts[0] + '.' + parts.slice(1).join('');
+  }
+  return clean;
+}
+
+function toRupeesInWords(amountStr: string): string {
+  const amount = parseFloat(amountStr);
+  if (isNaN(amount) || amount <= 0) return "";
+
+  const ones = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+  ];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  const convertLessThanThousand = (n: number): string => {
+    if (n === 0) return "";
+    if (n < 20) return ones[n];
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    let res = "";
+    if (hundred > 0) {
+      res += ones[hundred] + " Hundred";
+      if (rest > 0) res += " and ";
+    }
+    if (rest > 0) {
+      if (rest < 20) {
+        res += ones[rest];
+      } else {
+        res += tens[Math.floor(rest / 10)];
+        if (rest % 10 > 0) res += "-" + ones[rest % 10];
+      }
+    }
+    return res;
+  };
+
+  const integerPart = Math.floor(amount);
+  const decimalPart = Math.round((amount - integerPart) * 100);
+
+  let words = "";
+
+  if (integerPart === 0) {
+    words = "Zero Rupees";
+  } else {
+    let n = integerPart;
+    const crore = Math.floor(n / 10000000);
+    n %= 10000000;
+    const lakh = Math.floor(n / 100000);
+    n %= 100000;
+    const thousand = Math.floor(n / 1000);
+    n %= 1000;
+
+    let parts = [];
+    if (crore > 0) parts.push(convertLessThanThousand(crore) + " Crore");
+    if (lakh > 0) parts.push(convertLessThanThousand(lakh) + " Lakh");
+    if (thousand > 0) parts.push(convertLessThanThousand(thousand) + " Thousand");
+    if (n > 0) parts.push(convertLessThanThousand(n));
+
+    words = parts.join(", ") + " " + (integerPart === 1 ? "Rupee" : "Rupees");
+  }
+
+  if (decimalPart > 0) {
+    words += " and " + convertLessThanThousand(decimalPart) + " " + (decimalPart === 1 ? "Paisa" : "Paise");
+  }
+
+  return words + " Only";
 }
