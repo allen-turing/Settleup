@@ -1,17 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, ArrowRight, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col justify-center items-center py-20 min-h-screen">
+        <div className="h-10 w-10 border-4 border-purple-600/30 border-t-purple-600 rounded-full animate-spin mb-4" />
+        <p className="text-sm text-zinc-400">Loading login...</p>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const groupId = searchParams.get("group");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +45,22 @@ export default function LoginPage() {
 
       if (!response.ok) {
         throw new Error(data.error || "Login failed. Check credentials.");
+      }
+
+      // Auto-join the group if invited via query link
+      if (groupId) {
+        try {
+          const joinRes = await fetch(`/api/groups/${groupId}/join`, {
+            method: "POST",
+          });
+          if (joinRes.ok) {
+            router.replace(`/groups/${groupId}`);
+            router.refresh();
+            return;
+          }
+        } catch (joinErr) {
+          console.error("Auto-joining group failed:", joinErr);
+        }
       }
 
       router.replace("/dashboard");
@@ -136,7 +168,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center text-xs">
             <span className="text-zinc-500">New to PayPaySplit?</span>{" "}
             <Link
-              href="/signup"
+              href={groupId ? `/signup?group=${groupId}` : "/signup"}
               className="text-purple-400 font-medium hover:text-purple-300 hover:underline transition"
             >
               Create an account

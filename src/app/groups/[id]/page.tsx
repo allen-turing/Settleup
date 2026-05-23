@@ -236,6 +236,39 @@ export default function GroupDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Custom modal dialog states & helper triggers
+  const [customDialog, setCustomDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "alert" | "confirm";
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "alert",
+  });
+
+  const showCustomAlert = (title: string, message: string) => {
+    setCustomDialog({
+      isOpen: true,
+      title,
+      message,
+      type: "alert",
+    });
+  };
+
+  const showCustomConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setCustomDialog({
+      isOpen: true,
+      title,
+      message,
+      type: "confirm",
+      onConfirm,
+    });
+  };
+
   // Invite Member States
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -291,7 +324,7 @@ export default function GroupDetailsPage() {
   const [editGroupLoading, setEditGroupLoading] = useState(false);
   const [editGroupError, setEditGroupError] = useState("");
 
-  const isAnyModalOpen = isExpenseModalOpen || isSettleModalOpen || isInviteModalOpen || isEditGroupModalOpen || !!viewingEventId;
+  const isAnyModalOpen = isExpenseModalOpen || isSettleModalOpen || isInviteModalOpen || isEditGroupModalOpen || !!viewingEventId || customDialog.isOpen;
 
   // Derived state lifted to top level for feed rendering and keyboard details navigation
   const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById || filterSearchText.trim() || filterStartDate || filterEndDate);
@@ -863,22 +896,40 @@ export default function GroupDetailsPage() {
   };
 
   const handleRemoveMember = async (userId: string) => {
-    try {
-      const res = await fetch(`/api/groups/${groupId}/members/${userId}`, {
-        method: "DELETE",
-      });
+    const memberBalanceInfo = balances.find((b) => b.userId === userId);
+    const memberName = memberBalanceInfo?.userName || "this member";
+    const netBalance = memberBalanceInfo ? memberBalanceInfo.netBalance : 0;
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to remove member.");
-      }
-
-      // Refresh group details
-      await fetchGroupDetails();
-    } catch (err: any) {
-      alert(err.message || "An error occurred.");
+    if (Math.abs(netBalance) > 0.005) {
+      showCustomAlert(
+        "Cannot remove member",
+        `Cannot remove member. ${memberName} has an active outstanding balance of ₹${netBalance > 0 ? "+" : ""}${netBalance.toFixed(2)} and must be fully settled up (₹0.00) first.`
+      );
+      return;
     }
+
+    showCustomConfirm(
+      "Remove Member",
+      `Are you sure you want to remove ${memberName} from this group?`,
+      async () => {
+        try {
+          const res = await fetch(`/api/groups/${groupId}/members/${userId}`, {
+            method: "DELETE",
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to remove member.");
+          }
+
+          // Refresh group details
+          await fetchGroupDetails();
+        } catch (err: any) {
+          showCustomAlert("Error", err.message || "An error occurred.");
+        }
+      }
+    );
   };
 
   const handleCreateCustomCategory = async (e: React.MouseEvent) => {
@@ -1352,10 +1403,10 @@ export default function GroupDetailsPage() {
                 </div>
 
                 {/* Delete membership button */}
-                {currentUser && currentUser.userId !== member.userId && (
+                {currentUser && currentUser.userId !== member.userId && !group?.isArchived && (
                   <button
                     onClick={() => handleRemoveMember(member.userId)}
-                    className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/20 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                    className="p-1 rounded bg-zinc-900 border border-zinc-800 text-rose-500/70 hover:text-rose-400 hover:border-rose-500/30 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 hover:opacity-100 transition cursor-pointer"
                     title="Remove Member"
                   >
                     <X className="h-3 w-3" />
@@ -3465,11 +3516,64 @@ export default function GroupDetailsPage() {
       {!isAnyModalOpen && !group?.isArchived && (
         <button
           onClick={openAddExpenseModal}
-          className="sm:hidden fixed bottom-6 right-6 z-50 p-4 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 border border-purple-400/20 text-white shadow-[0_8px_30px_rgba(168,85,247,0.4)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"
+          className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-2xl overflow-hidden border border-purple-500/35 shadow-[0_8px_30px_rgba(168,85,247,0.45)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"
           title="Add Expense"
         >
-          <Plus className="h-6 w-6" />
+          <img src="/logo.png" alt="Add Expense Logo" className="h-12 w-12 object-cover" />
         </button>
+      )}
+
+      {/* CUSTOM GLASSMORPHIC DIALOG MODAL */}
+      {customDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+          <div className="glass-card rounded-2xl w-full max-w-sm p-6 relative animate-zoom-in border border-white/10 shadow-2xl">
+            <h3 className={`text-lg font-bold mb-2 flex items-center gap-2 ${customDialog.type === "alert" ? "text-purple-300" : "text-white"}`}>
+              {customDialog.type === "alert" ? (
+                <div className="p-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+              ) : (
+                <div className="p-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                  <Trash2 className="h-4 w-4" />
+                </div>
+              )}
+              {customDialog.title}
+            </h3>
+            
+            <p className="text-xs text-zinc-300 leading-relaxed mb-6">
+              {customDialog.message}
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              {customDialog.type === "confirm" ? (
+                <>
+                  <button
+                    onClick={() => setCustomDialog(prev => ({ ...prev, isOpen: false }))}
+                    className="py-2 px-4 bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-400 hover:text-white rounded-lg transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                      if (customDialog.onConfirm) customDialog.onConfirm();
+                    }}
+                    className="py-2 px-4 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-xs font-semibold text-white rounded-lg shadow-lg cursor-pointer transition-all"
+                  >
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setCustomDialog(prev => ({ ...prev, isOpen: false }))}
+                  className="py-2 px-5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-xs font-semibold text-white rounded-lg shadow-lg cursor-pointer transition-all"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
