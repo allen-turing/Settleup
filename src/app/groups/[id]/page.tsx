@@ -38,7 +38,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
-  Search
+  Search,
+  Share2,
+  MessageCircle
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -241,6 +243,8 @@ export default function GroupDetailsPage() {
   // Modals Toggles
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
 
   // Add Expense States
   const [expTitle, setExpTitle] = useState("");
@@ -284,6 +288,8 @@ export default function GroupDetailsPage() {
   const [editGroupDesc, setEditGroupDesc] = useState("");
   const [editGroupLoading, setEditGroupLoading] = useState(false);
   const [editGroupError, setEditGroupError] = useState("");
+
+  const isAnyModalOpen = isExpenseModalOpen || isSettleModalOpen || isInviteModalOpen || isEditGroupModalOpen || !!viewingEventId;
 
   // Derived state lifted to top level for feed rendering and keyboard details navigation
   const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById || filterSearchText.trim() || filterStartDate || filterEndDate);
@@ -514,6 +520,70 @@ export default function GroupDetailsPage() {
     } finally {
       setInviteLoading(false);
     }
+  };
+
+  const copyToClipboard = (text: string, onSuccess: () => void) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          onSuccess();
+        })
+        .catch(() => {
+          fallbackCopyText(text, onSuccess);
+        });
+    } else {
+      fallbackCopyText(text, onSuccess);
+    }
+  };
+
+  const fallbackCopyText = (text: string, onSuccess: () => void) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    // Prevent keyboard popping on mobile
+    textArea.readOnly = true;
+    // Avoid scrolling to bottom
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    // Prevent pointer event capture issues on the element
+    textArea.style.pointerEvents = "none";
+    
+    document.body.appendChild(textArea);
+    textArea.select();
+    textArea.setSelectionRange(0, 99999); // Mobile Safari support
+    
+    try {
+      document.execCommand("copy");
+      onSuccess();
+    } catch (err) {
+      console.error("Fallback copy failed:", err);
+    }
+    
+    // Defer removal to prevent mobile browsers' pointer capture system from throwing exceptions
+    setTimeout(() => {
+      if (document.body.contains(textArea)) {
+        document.body.removeChild(textArea);
+      }
+    }, 150);
+  };
+
+  const handleCopyInviteLink = () => {
+    const link = `${window.location.origin}/signup?group=${groupId}`;
+    copyToClipboard(link, () => {
+      setCopiedInviteLink(true);
+      setTimeout(() => setCopiedInviteLink(false), 2000);
+    });
+  };
+
+  const getWhatsAppShareUrl = () => {
+    const text = `Hey! Join our "${group?.name || 'Expenses'}" on PayPaySplit, Because *“we’ll split it later” has ruined civilizations*: ${window.location.origin}/signup?group=${groupId}`;
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  };
+
+  const getSmsShareUrl = () => {
+    const text = `Hey! Join our "${group?.name || 'Expenses'}" on PayPaySplit, Because “we’ll split it later” has ruined civilizations: ${window.location.origin}/signup?group=${groupId}`;
+    return `sms:?&body=${encodeURIComponent(text)}`;
   };
 
   const openAddExpenseModal = () => {
@@ -1013,9 +1083,10 @@ export default function GroupDetailsPage() {
   };
 
   const handleCopyUpi = (upi: string) => {
-    navigator.clipboard.writeText(upi);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
+    copyToClipboard(upi, () => {
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    });
   };
 
   // Open Settle Modal with defaults
@@ -1255,6 +1326,7 @@ export default function GroupDetailsPage() {
                     {group?.name || "Loading Group..."}
                   </h1>
                   {group && (
+                  <div className="flex items-center gap-0.5">
                     <button
                       onClick={openEditGroupModal}
                       className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition cursor-pointer"
@@ -1262,7 +1334,15 @@ export default function GroupDetailsPage() {
                     >
                       <Edit2 className="h-3 w-3" />
                     </button>
-                  )}
+                    <button
+                      onClick={() => setIsInviteModalOpen(true)}
+                      className="p-1 rounded text-zinc-500 hover:text-purple-400 hover:bg-white/5 transition cursor-pointer"
+                      title="Invite members"
+                    >
+                      <UserPlus className="h-3.5 w-3.5 text-purple-400/90" />
+                    </button>
+                  </div>
+                )}
                 </div>
                 <p className="text-[10px] sm:text-xs text-zinc-500 truncate max-w-[160px] sm:max-w-sm">
                   {group?.description || "PayPaySplit expense circle"}
@@ -1308,21 +1388,14 @@ export default function GroupDetailsPage() {
               </Link>
             )}
 
-            {/* Main Action Buttons: Stretch to full width on mobile, inline auto on desktop */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 w-full sm:w-auto">
+            {/* Main Action Buttons: Hidden on mobile (since FAB is present), inline auto on desktop */}
+            <div className="hidden sm:flex sm:items-center sm:gap-3">
               <button
                 onClick={openAddExpenseModal}
-                className="flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer w-full sm:w-auto"
+                className="flex items-center justify-center gap-1.5 py-2 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-xs sm:text-sm text-white shadow shadow-purple-500/25 transition cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Expense</span>
-              </button>
-              <button
-                onClick={openDefaultSettleModal}
-                className="flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 font-semibold text-xs sm:text-sm transition cursor-pointer w-full sm:w-auto"
-              >
-                <ArrowRightLeft className="h-4 w-4" />
-                <span>Settle Up</span>
               </button>
             </div>
 
@@ -1845,14 +1918,71 @@ export default function GroupDetailsPage() {
 
                       {/* Feed */}
                       {_filteredExpenses.length === 0 && !_isFiltered && settlements.length === 0 ? (
-                        <div className="glass-card rounded-2xl p-12 text-center flex flex-col justify-center items-center">
+                        <div className="glass-card rounded-2xl p-10 sm:p-12 text-center flex flex-col justify-center items-center relative overflow-hidden">
+                          {/* Top Highlight Icon */}
                           <div className="h-14 w-14 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4 animate-pulse">
                             <CreditCard className="h-7 w-7" />
                           </div>
+                          
                           <h4 className="text-white font-semibold text-base mb-1">No Activity Logged</h4>
-                          <p className="text-zinc-400 text-sm max-w-sm mb-6">
-                            There are no expenses or settlement payments logged in this group. Click &quot;Add Expense&quot; to get started!
+                          <p className="text-zinc-400 text-sm max-w-sm mb-6 leading-relaxed">
+                            There are no expenses or settlement payments logged in this group yet. Click &quot;Add Expense&quot; to log your first transaction!
                           </p>
+
+                          {/* Quick Invite & Join Card (for new groups to onboard friends instantly!) */}
+                          <div className="w-full max-w-md p-5 rounded-2xl bg-zinc-950/40 border border-white/5 space-y-4 text-left shadow-inner">
+                            <div>
+                              <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <UserPlus className="h-3.5 w-3.5 text-purple-400" />
+                                Onboard Group Members
+                              </h5>
+                              <p className="text-[10px] text-zinc-500 mt-0.5">Share access to let others join this circle</p>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800 p-2.5 rounded-xl">
+                              <p className="text-[11px] text-zinc-300 font-bold truncate flex-1 select-all select-none pr-1">
+                                {typeof window !== "undefined" ? `${window.location.origin}/signup?group=${groupId}` : ""}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleCopyInviteLink}
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                                  copiedInviteLink
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                    : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+                                }`}
+                              >
+                                {copiedInviteLink ? "Copied!" : "Copy"}
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => setIsInviteModalOpen(true)}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold transition cursor-pointer"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                <span>Email</span>
+                              </button>
+                              <a
+                                href={getWhatsAppShareUrl()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1 py-1.5 px-2 bg-zinc-900 border border-zinc-800 hover:border-emerald-500/30 hover:bg-emerald-500/5 hover:text-emerald-400 text-zinc-400 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                <span>WhatsApp</span>
+                              </a>
+                              <a
+                                href={getSmsShareUrl()}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2 bg-zinc-900 border border-zinc-800 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 text-zinc-400 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                <Share2 className="h-3.5 w-3.5 text-purple-400" />
+                                <span>SMS</span>
+                              </a>
+                            </div>
+                          </div>
                         </div>
                       ) : _filteredExpenses.length === 0 && _isFiltered ? (
                         <div className="glass-card rounded-2xl p-10 text-center flex flex-col justify-center items-center">
@@ -3079,24 +3209,161 @@ export default function GroupDetailsPage() {
         </div>
       )}
 
+      {/* MODAL 4: DEDICATED INVITE MEMBERS MODAL */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card rounded-2xl w-full max-w-md p-6 relative animate-zoom-in">
+            <button
+              onClick={() => {
+                setIsInviteModalOpen(false);
+                setInviteSuccess(false);
+                setInviteError("");
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Invite members</h3>
+                <p className="text-xs text-zinc-500">Add people to &quot;{group?.name}&quot;</p>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              {/* Option 1: Email Invite */}
+              <div className="space-y-2 border-b border-white/5 pb-4.5">
+                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
+                  Invite via Email Address
+                </label>
+                
+                {inviteError && (
+                  <div className="mb-2.5 p-2 rounded-lg bg-red-500/15 border border-red-500/30 text-[10px] text-red-400 animate-fade-in">
+                    {inviteError}
+                  </div>
+                )}
+
+                {inviteSuccess && (
+                  <div className="mb-2.5 p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400 animate-fade-in">
+                    Invitation sent successfully!
+                  </div>
+                )}
+
+                <form onSubmit={handleInvite} className="flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    placeholder="friend@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => {
+                      setInviteEmail(e.target.value);
+                      setInviteSuccess(false);
+                      setInviteError("");
+                    }}
+                    disabled={inviteLoading}
+                    className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-600 transition focus:border-purple-500/50 outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={inviteLoading}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg font-semibold text-xs transition cursor-pointer flex items-center justify-center min-w-[70px]"
+                  >
+                    {inviteLoading ? (
+                      <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      "Invite"
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Option 2: Copy Join Link & Direct Share */}
+              <div className="space-y-3.5">
+                <div>
+                  <h4 className="text-xs font-semibold text-zinc-400 mb-1.5">Share Invite / Join Link</h4>
+                  <p className="text-[10px] text-zinc-500 leading-normal">
+                    Anyone with this link can create an account and join this circle.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 bg-zinc-900/50 border border-zinc-800/80 p-2.5 rounded-xl">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Join URL</p>
+                    <p className="text-xs text-white font-bold truncate pr-2 selection:bg-purple-500/30">
+                      {typeof window !== "undefined" ? `${window.location.origin}/signup?group=${groupId}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                      copiedInviteLink
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                        : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                    }`}
+                  >
+                    {copiedInviteLink ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+
+                {/* Direct Share Shortcuts (WhatsApp / SMS) */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <a
+                    href={getWhatsAppShareUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 py-2 px-3 bg-zinc-900 border border-zinc-800 hover:border-emerald-500/30 hover:bg-emerald-500/5 hover:text-emerald-400 text-zinc-400 text-xs font-semibold rounded-xl transition text-center cursor-pointer"
+                  >
+                    <MessageCircle className="h-4 w-4 text-emerald-500" />
+                    <span>WhatsApp</span>
+                  </a>
+                  <a
+                    href={getSmsShareUrl()}
+                    className="flex items-center justify-center gap-2 py-2 px-3 bg-zinc-900 border border-zinc-800 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 text-zinc-400 text-xs font-semibold rounded-xl transition text-center cursor-pointer"
+                  >
+                    <Share2 className="h-4 w-4 text-purple-400" />
+                    <span>SMS Share</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Scroll to Top / Scroll to Bottom Floating Buttons */}
-      {viewTab === "expenses" && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2.5">
+      {viewTab === "expenses" && !isAnyModalOpen && (
+        <div className="fixed bottom-6 left-6 sm:left-auto sm:right-6 z-50 flex flex-col gap-2">
           <button
             onClick={scrollToTop}
-            className="p-3 rounded-full bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-zinc-400 hover:text-white active:bg-zinc-900 shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
+            className="p-2 sm:p-3 rounded-full bg-zinc-950/50 sm:bg-zinc-950/80 border border-white/5 sm:border-zinc-800 backdrop-blur-md text-zinc-500 sm:text-zinc-400 hover:text-white active:bg-zinc-900 shadow-xl sm:shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
             title="Scroll to Top"
           >
-            <ChevronUp className="h-5 w-5" />
+            <ChevronUp className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </button>
           <button
             onClick={scrollToBottom}
-            className="p-3 rounded-full bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-zinc-400 hover:text-white active:bg-zinc-900 shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
+            className="p-2 sm:p-3 rounded-full bg-zinc-950/50 sm:bg-zinc-950/80 border border-white/5 sm:border-zinc-800 backdrop-blur-md text-zinc-500 sm:text-zinc-400 hover:text-white active:bg-zinc-900 shadow-xl sm:shadow-2xl transition cursor-pointer flex items-center justify-center hover:scale-105"
             title="Scroll to Bottom"
           >
-            <ChevronDown className="h-5 w-5" />
+            <ChevronDown className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </button>
         </div>
+      )}
+
+      {/* Mobile-only "+ Add Expense" Floating Action Button */}
+      {!isAnyModalOpen && (
+        <button
+          onClick={openAddExpenseModal}
+          className="sm:hidden fixed bottom-6 right-6 z-50 p-4 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 border border-purple-400/20 text-white shadow-[0_8px_30px_rgba(168,85,247,0.4)] transition cursor-pointer flex items-center justify-center active:scale-95 duration-200 hover:scale-110"
+          title="Add Expense"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
       )}
     </div>
   );
