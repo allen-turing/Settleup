@@ -20,6 +20,7 @@ export interface SimplifiedTransaction {
 interface ExpenseData {
   paidById: string;
   totalAmount: number | { toNumber(): number } | string;
+  splitType?: string;
   participants: {
     userId: string;
     shareAmount: number | { toNumber(): number } | string;
@@ -80,12 +81,19 @@ export function calculateBalances(
       balanceMap[payerId].totalPaid += expenseAmt;
     }
 
-    for (const participant of expense.participants) {
-      const pId = participant.userId;
-      const shareAmt = toNum(participant.shareAmount);
+    // If it's a SELF (personal) expense or has no participants, the payer owes the entire amount to themselves
+    if (expense.splitType === "SELF" || !expense.participants || expense.participants.length === 0) {
+      if (balanceMap[payerId]) {
+        balanceMap[payerId].totalOwed += expenseAmt;
+      }
+    } else {
+      for (const participant of expense.participants) {
+        const pId = participant.userId;
+        const shareAmt = toNum(participant.shareAmount);
 
-      if (balanceMap[pId]) {
-        balanceMap[pId].totalOwed += shareAmt;
+        if (balanceMap[pId]) {
+          balanceMap[pId].totalOwed += shareAmt;
+        }
       }
     }
   }

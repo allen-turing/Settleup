@@ -93,6 +93,45 @@ function runTests() {
   assert.strictEqual(txs4[0].amount, 100, "Amount should be 100");
   console.log("✓ Test 4 Passed!");
 
+  // TEST 5: Self Only (Personal) Expense
+  // Alice paid 150 for a personal item (splitType: SELF or empty participants)
+  // Bob paid 200, which was an equal split of 100 each for Alice and Bob.
+  // Alice's netBalance should be:
+  //   Paid: 0 (equal split) + 150 (personal) = 150
+  //   Owed: 100 (equal split share) + 150 (personal share) = 250
+  //   Net: 150 - 250 = -100
+  // Bob's netBalance should be:
+  //   Paid: 200 (equal split) = 200
+  //   Owed: 100 (equal split share) = 100
+  //   Net: 200 - 100 = 100
+  console.log("Running Test 5: Self Only (Personal) Expense...");
+  const expenses5 = [
+    {
+      paidById: "1", // Alice paid
+      totalAmount: 150,
+      splitType: "SELF",
+      participants: [], // empty participants
+    },
+    {
+      paidById: "2", // Bob paid
+      totalAmount: 200,
+      splitType: "EQUAL",
+      participants: [
+        { userId: "1", shareAmount: 100 },
+        { userId: "2", shareAmount: 100 },
+      ],
+    },
+  ];
+  const balances5 = calculateBalances(members, expenses5, []);
+  const aliceBal5 = balances5.find(b => b.userId === "1")!;
+  const bobBal5 = balances5.find(b => b.userId === "2")!;
+  const charlieBal5 = balances5.find(b => b.userId === "3")!;
+
+  assert.strictEqual(aliceBal5.netBalance, -100, "Alice should owe 100");
+  assert.strictEqual(bobBal5.netBalance, 100, "Bob should be owed 100");
+  assert.strictEqual(charlieBal5.netBalance, 0, "Charlie should be settled");
+  console.log("✓ Test 5 Passed!");
+
   console.log("=== All PayPaySplit Debt Simplifier Tests Passed Successfully! ===");
 }
 
