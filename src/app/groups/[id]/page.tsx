@@ -88,6 +88,7 @@ interface Member {
   name: string;
   email: string;
   joinedAt: string;
+  upiId?: string | null;
 }
 
 interface ExpenseParticipant {
@@ -271,6 +272,7 @@ export default function GroupDetailsPage() {
   const [settleNote, setSettleNote] = useState("");
   const [settleLoading, setSettleLoading] = useState(false);
   const [settleError, setSettleError] = useState("");
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   // Inline delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -1007,6 +1009,12 @@ export default function GroupDetailsPage() {
     setSettleReceiver(toId);
     setSettleAmount(amount.toString());
     setIsSettleModalOpen(true);
+  };
+
+  const handleCopyUpi = (upi: string) => {
+    navigator.clipboard.writeText(upi);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
   // Open Settle Modal with defaults
@@ -2746,6 +2754,48 @@ export default function GroupDetailsPage() {
                   ))}
                 </select>
               </div>
+
+              {(() => {
+                const receiverMember = members.find((m) => m.userId === settleReceiver);
+                const upi = receiverMember?.upiId;
+                return (
+                  <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-semibold">Receiver's Payment Info</span>
+                      <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-md font-bold">UPI Quick Pay</span>
+                    </div>
+
+                    {upi ? (
+                      <div className="flex items-center justify-between gap-3 bg-zinc-900/50 border border-zinc-800/80 p-2.5 rounded-lg">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Coins className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">UPI ID</p>
+                            <p className="text-xs text-white font-bold truncate selection:bg-purple-500/30">{upi}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyUpi(upi)}
+                          className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                            copiedUpi
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                              : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                          }`}
+                        >
+                          {copiedUpi ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-lg border border-zinc-800/40 bg-zinc-900/20 text-center">
+                        <p className="text-[10px] text-zinc-500 leading-normal">
+                          {receiverMember?.name || "This user"} has not registered a UPI ID yet. You can still record this settlement manually.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

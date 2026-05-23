@@ -16,6 +16,7 @@ model User {
   passwordHash        String
   createdAt           DateTime             @default(now())
   lastExpenseSeenAt   DateTime?
+  upiId               String?
   
   createdGroups       Group[]              @relation("GroupCreator")
   groups              GroupMember[]

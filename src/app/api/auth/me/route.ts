@@ -19,6 +19,7 @@ export async function GET() {
         id: true,
         name: true,
         email: true,
+        upiId: true,
         createdAt: true,
       },
     });
@@ -50,7 +51,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, currentPassword, newPassword } = body;
+    const { name, email, currentPassword, newPassword, upiId } = body;
 
     // Fetch the full user record (need passwordHash for verification)
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
@@ -58,7 +59,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
-    const updates: Record<string, string> = {};
+    const updates: Record<string, any> = {};
 
     // --- Name update ---
     if (name !== undefined) {
@@ -85,6 +86,11 @@ export async function PATCH(request: Request) {
         }
         updates.email = trimmed;
       }
+    }
+
+    // --- UPI ID update ---
+    if (upiId !== undefined) {
+      updates.upiId = upiId ? upiId.trim() : null;
     }
 
     // --- Password update ---
@@ -118,7 +124,7 @@ export async function PATCH(request: Request) {
     const updated = await prisma.user.update({
       where: { id: payload.userId },
       data: updates,
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: { id: true, name: true, email: true, upiId: true, createdAt: true },
     });
 
     // If email changed, re-issue JWT so middleware stays valid

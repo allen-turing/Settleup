@@ -4,7 +4,7 @@ import { hashPassword, signToken } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json();
+    const { name, email, password, upiId } = await request.json();
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
           data: {
             name,
             passwordHash,
+            upiId: upiId ? upiId.trim() : null,
           },
         });
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
         const response = NextResponse.json(
           {
             message: "Account activated successfully.",
-            user: { id: user.id, name: user.name, email: user.email },
+            user: { id: user.id, name: user.name, email: user.email, upiId: user.upiId },
           },
           { status: 201 }
         );
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
         name,
         email: email.toLowerCase(),
         passwordHash,
+        upiId: upiId ? upiId.trim() : null,
       },
     });
 
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json(
       {
         message: "Account created successfully.",
-        user: { id: user.id, name: user.name, email: user.email },
+        user: { id: user.id, name: user.name, email: user.email, upiId: user.upiId },
       },
       { status: 201 }
     );

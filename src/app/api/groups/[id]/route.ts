@@ -40,7 +40,7 @@ export async function GET(
         members: {
           include: {
             user: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, name: true, email: true, upiId: true },
             },
           },
           orderBy: {
@@ -107,6 +107,7 @@ export async function GET(
           userId: m.user.id,
           name: m.user.name,
           email: m.user.email,
+          upiId: m.user.upiId,
           joinedAt: m.joinedAt,
         })),
         invitations: group.invitations,

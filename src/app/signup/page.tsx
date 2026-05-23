@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff, Coins } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [upiId, setUpiId] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,7 @@ export default function SignupPage() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, upiId }),
       });
 
       const data = await response.json();
@@ -140,6 +141,27 @@ export default function SignupPage() {
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="upiId" className="block text-xs font-medium text-zinc-400 mb-2 flex justify-between">
+                <span>UPI ID <span className="text-zinc-500 text-[10px] font-normal">(Optional)</span></span>
+                <span className="text-[10px] text-zinc-500 font-normal">For quick settlement payments</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
+                  <Coins className="h-4 w-4" />
+                </div>
+                <input
+                  id="upiId"
+                  type="text"
+                  placeholder="e.g. john@okhdfcbank"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  disabled={loading}
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 transition-all duration-200 focus:outline-none focus:border-purple-500/50"
+                />
               </div>
             </div>
 

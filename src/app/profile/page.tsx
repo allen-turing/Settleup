@@ -16,12 +16,14 @@ import {
   ShieldCheck,
   Pencil,
   LogOut,
+  Coins,
 } from "lucide-react";
 
 interface UserProfile {
   id: string;
   name: string;
   email: string;
+  upiId: string | null;
   createdAt: string;
 }
 
@@ -35,6 +37,7 @@ export default function ProfilePage() {
   // Info form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [upiId, setUpiId] = useState("");
   const [infoLoading, setInfoLoading] = useState(false);
   const [infoStatus, setInfoStatus] = useState<Status>(null);
 
@@ -59,6 +62,7 @@ export default function ProfilePage() {
         setUser(data.user);
         setName(data.user.name);
         setEmail(data.user.email);
+        setUpiId(data.user.upiId || "");
       })
       .finally(() => setLoading(false));
   }, [router]);
@@ -71,13 +75,14 @@ export default function ProfilePage() {
       const res = await fetch("/api/auth/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, upiId: upiId.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update profile.");
       setUser(data.user);
       setName(data.user.name);
       setEmail(data.user.email);
+      setUpiId(data.user.upiId || "");
       setInfoStatus({ type: "success", message: "Profile updated successfully!" });
     } catch (err: any) {
       setInfoStatus({ type: "error", message: err.message });
@@ -127,7 +132,11 @@ export default function ProfilePage() {
     }
   };
 
-  const isInfoChanged = user && (name.trim() !== user.name || email.trim().toLowerCase() !== user.email);
+  const isInfoChanged = user && (
+    name.trim() !== user.name || 
+    email.trim().toLowerCase() !== user.email ||
+    (upiId.trim() || null) !== (user.upiId || null)
+  );
 
   if (loading) {
     return (
@@ -248,6 +257,25 @@ export default function ProfilePage() {
                   onChange={(e) => { setEmail(e.target.value); setInfoStatus(null); }}
                   className="w-full pl-9 pr-4 py-2.5 bg-zinc-900/60 border border-zinc-800 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 rounded-xl text-sm text-white placeholder-zinc-600 outline-none transition"
                   placeholder="you@example.com"
+                />
+              </div>
+            </div>
+
+            {/* UPI ID */}
+            <div>
+              <label htmlFor="profile-upi" className="block text-xs font-medium text-zinc-400 mb-1.5 flex justify-between">
+                <span>UPI ID</span>
+                <span className="text-[10px] text-zinc-500 font-normal">Optional — for quick settlement payments</span>
+              </label>
+              <div className="relative">
+                <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600 pointer-events-none" />
+                <input
+                  id="profile-upi"
+                  type="text"
+                  value={upiId}
+                  onChange={(e) => { setUpiId(e.target.value); setInfoStatus(null); }}
+                  className="w-full pl-9 pr-4 py-2.5 bg-zinc-900/60 border border-zinc-800 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 rounded-xl text-sm text-white placeholder-zinc-600 outline-none transition"
+                  placeholder="e.g. john@okhdfcbank"
                 />
               </div>
             </div>
