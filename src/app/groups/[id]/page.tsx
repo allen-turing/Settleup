@@ -36,7 +36,8 @@ import {
   Plane,
   SlidersHorizontal,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Search
 } from "lucide-react";
 
 // Category mappings for premium badges
@@ -219,6 +220,9 @@ export default function GroupDetailsPage() {
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
   const [filterPaidById, setFilterPaidById] = useState<string | null>(null);
+  const [filterSearchText, setFilterSearchText] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [viewingEventType, setViewingEventType] = useState<"EXPENSE" | "SETTLEMENT" | null>(null);
@@ -279,12 +283,34 @@ export default function GroupDetailsPage() {
   const [editGroupError, setEditGroupError] = useState("");
 
   // Derived state lifted to top level for feed rendering and keyboard details navigation
-  const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById);
+  const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById || filterSearchText.trim() || filterStartDate || filterEndDate);
   const _filteredExpenses = expenses.filter((e) => {
     const mOk = !filterMemberId || e.paidById === filterMemberId || (e.participants || []).some((p: any) => p.userId === filterMemberId);
     const cOk = !filterCategoryId || e.category?.id === filterCategoryId;
     const pOk = !filterPaidById || e.paidById === filterPaidById;
-    return mOk && cOk && pOk;
+    
+    // Fuzzy search match on Title or Description
+    let sOk = true;
+    if (filterSearchText.trim()) {
+      const term = filterSearchText.toLowerCase().trim();
+      const titleMatch = e.title.toLowerCase().includes(term);
+      const descMatch = e.description ? e.description.toLowerCase().includes(term) : false;
+      sOk = titleMatch || descMatch;
+    }
+
+    // Date range boundary match (inclusive of entire calendar days)
+    let dOk = true;
+    const expTime = new Date(e.expenseDate).getTime();
+    if (filterStartDate) {
+      const startTime = new Date(filterStartDate + "T00:00:00").getTime();
+      if (expTime < startTime) dOk = false;
+    }
+    if (filterEndDate) {
+      const endTime = new Date(filterEndDate + "T23:59:59").getTime();
+      if (expTime > endTime) dOk = false;
+    }
+
+    return mOk && cOk && pOk && sOk && dOk;
   });
 
   const sortedEvents = [
@@ -1247,6 +1273,30 @@ export default function GroupDetailsPage() {
                                       );
                                     })()}
 
+                                    {filterSearchText.trim() && (
+                                      <span 
+                                        onClick={(e) => { e.stopPropagation(); setFilterSearchText(""); }}
+                                        className="group/badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition cursor-pointer"
+                                      >
+                                        <span>Search: "{filterSearchText}"</span>
+                                        <X className="h-2.5 w-2.5 text-purple-400/60 group-hover/badge:text-purple-400" />
+                                      </span>
+                                    )}
+
+                                    {(filterStartDate || filterEndDate) && (
+                                      <span 
+                                        onClick={(e) => { e.stopPropagation(); setFilterStartDate(""); setFilterEndDate(""); }}
+                                        className="group/badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer"
+                                      >
+                                        <Calendar className="h-2.5 w-2.5 text-emerald-400" />
+                                        <span>
+                                          {filterStartDate ? new Date(filterStartDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Start"} 
+                                          - {filterEndDate ? new Date(filterEndDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "End"}
+                                        </span>
+                                        <X className="h-2.5 w-2.5 text-emerald-400/60 group-hover/badge:text-emerald-400" />
+                                      </span>
+                                    )}
+
                                     {/* Clear Button */}
                                     <button 
                                       onClick={(e) => { 
@@ -1254,6 +1304,9 @@ export default function GroupDetailsPage() {
                                         setFilterMemberId(null); 
                                         setFilterCategoryId(null); 
                                         setFilterPaidById(null); 
+                                        setFilterSearchText("");
+                                        setFilterStartDate("");
+                                        setFilterEndDate("");
                                       }}
                                       className="text-[10px] text-zinc-500 hover:text-zinc-300 font-semibold ml-1 cursor-pointer transition"
                                     >
@@ -1284,6 +1337,65 @@ export default function GroupDetailsPage() {
                           {/* Expanded Content */}
                           {isFilterExpanded && (
                             <div className="border-t border-white/5 p-4 space-y-4 bg-zinc-950/20">
+                              {/* Row 0: Fuzzy Text Search & Date Range Picker */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-3 border-b border-white/5">
+                                {/* Search Input */}
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Search Title / Description</p>
+                                  <div className="relative">
+                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                                    <input 
+                                      type="text" 
+                                      value={filterSearchText}
+                                      onChange={(e) => setFilterSearchText(e.target.value)}
+                                      placeholder="Type to search title or description..."
+                                      className="w-full pl-9 pr-8 py-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-zinc-900/80 transition"
+                                    />
+                                    {filterSearchText && (
+                                      <button 
+                                        onClick={() => setFilterSearchText("")}
+                                        className="absolute right-3 top-2.5 text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Date Range Picker */}
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">Filter by Date Range</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                      <input 
+                                        type="date" 
+                                        value={filterStartDate}
+                                        onChange={(e) => setFilterStartDate(e.target.value)}
+                                        className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-zinc-900/80 transition [color-scheme:dark]"
+                                      />
+                                    </div>
+                                    <span className="text-zinc-500 text-xs font-semibold select-none">to</span>
+                                    <div className="relative flex-1">
+                                      <input 
+                                        type="date" 
+                                        value={filterEndDate}
+                                        onChange={(e) => setFilterEndDate(e.target.value)}
+                                        className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-zinc-900/80 transition [color-scheme:dark]"
+                                      />
+                                    </div>
+                                    {(filterStartDate || filterEndDate) && (
+                                      <button 
+                                        onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }}
+                                        className="p-2 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition cursor-pointer"
+                                        title="Clear date range"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
                               {/* Row 1: Filter by Person (Part of Expense) */}
                               <div>
                                 <div className="flex justify-between items-center mb-2">
@@ -1437,7 +1549,7 @@ export default function GroupDetailsPage() {
                                       <p className="text-[11px] text-zinc-500">
                                         Showing <span className="text-white font-semibold">{_filteredExpenses.length}</span> of <span className="text-white font-semibold">{expenses.length}</span> expenses
                                       </p>
-                                      <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); setFilterPaidById(null); }}
+                                      <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); setFilterPaidById(null); setFilterSearchText(""); setFilterStartDate(""); setFilterEndDate(""); }}
                                         className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
                                         Clear filters
                                       </button>
@@ -1492,7 +1604,7 @@ export default function GroupDetailsPage() {
                       ) : _filteredExpenses.length === 0 && _isFiltered ? (
                         <div className="glass-card rounded-2xl p-10 text-center flex flex-col justify-center items-center">
                           <p className="text-zinc-400 text-sm">No expenses match the selected filters.</p>
-                          <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); setFilterPaidById(null); }}
+                          <button onClick={() => { setFilterMemberId(null); setFilterCategoryId(null); setFilterPaidById(null); setFilterSearchText(""); setFilterStartDate(""); setFilterEndDate(""); }}
                             className="mt-3 text-xs text-purple-400 hover:text-purple-300 font-semibold cursor-pointer transition">
                             Clear filters
                           </button>
