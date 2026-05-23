@@ -1593,25 +1593,25 @@ export default function GroupDetailsPage() {
                                                 setViewingEventId(e.id);
                                                 setViewingEventType("EXPENSE");
                                               }}
-                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10 cursor-pointer"
+                                              className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10 cursor-pointer"
                                             >
-                                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                              <div className="flex items-center gap-3.5 flex-1 min-w-0">
                                                 {/* Category Icon Badge */}
-                                                <div className={`h-11 w-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${Meta.color}`}>
-                                                  <IconComponent className="h-5 w-5" />
+                                                <div className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${Meta.color}`}>
+                                                  <IconComponent className="h-4 w-4 sm:h-5 sm:w-5" />
                                                 </div>
-                                                <div className="min-w-0">
+                                                <div className="min-w-0 flex-1">
                                                   <h4 className="text-sm font-bold text-white truncate">{e.title}</h4>
-                                                  <p className="text-zinc-500 text-xs mt-1 truncate">
+                                                  <p className="text-zinc-500 text-[11px] sm:text-xs mt-0.5 truncate">
                                                     Paid by <span className="text-zinc-300 font-semibold">{e.paidBy?.name}</span>
                                                   </p>
                                                 </div>
                                               </div>
 
-                                              <div className="flex items-center gap-4 no-row-click">
-                                                <div className="text-right relative group/amount cursor-help">
-                                                  <p className="text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
-                                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                              <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-white/5 pt-3 sm:border-0 sm:pt-0 no-row-click flex-shrink-0">
+                                                <div className="text-left sm:text-right relative group/amount cursor-help flex-shrink-0">
+                                                  <p className="text-sm sm:text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
+                                                  <span className="text-[9px] sm:text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-0.5 inline-block">
                                                     {e.splitType === "SELF" ? "Self Only" : `${e.splitType} Split`}
                                                   </span>
 
@@ -1671,49 +1671,52 @@ export default function GroupDetailsPage() {
                                                   </div>
                                                 </div>
 
-                                                {/* Edit Button */}
-                                                <button
-                                                  onClick={() => triggerEditExpense(e)}
-                                                  className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition cursor-pointer"
-                                                  title="Edit Expense"
-                                                >
-                                                  <Edit2 className="h-3.8 w-3.8" />
-                                                </button>
-
-                                                {/* Duplicate Button */}
-                                                <button
-                                                  onClick={() => triggerDuplicateExpense(e)}
-                                                  className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-purple-400 hover:border-purple-500/20 hover:bg-purple-500/5 transition cursor-pointer"
-                                                  title="Duplicate Expense"
-                                                >
-                                                  <Copy className="h-3.8 w-3.8" />
-                                                </button>
-
-                                                {/* Delete Button — inline two-step confirmation */}
-                                                {deleteConfirmId === e.id ? (
-                                                  <div className="flex items-center gap-1.5 animate-fade-in">
-                                                    <button
-                                                      onClick={() => handleDeleteExpense(e.id)}
-                                                      className="px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold transition cursor-pointer"
-                                                    >
-                                                      Confirm
-                                                    </button>
-                                                    <button
-                                                      onClick={() => setDeleteConfirmId(null)}
-                                                      className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold transition cursor-pointer"
-                                                    >
-                                                      Cancel
-                                                    </button>
-                                                  </div>
-                                                ) : (
+                                                {/* Action Buttons Group */}
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                  {/* Edit Button */}
                                                   <button
-                                                    onClick={() => setDeleteConfirmId(e.id)}
-                                                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
-                                                    title="Delete Expense"
+                                                    onClick={() => triggerEditExpense(e)}
+                                                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition cursor-pointer"
+                                                    title="Edit Expense"
                                                   >
-                                                    <Trash2 className="h-3.8 w-3.8" />
+                                                    <Edit2 className="h-3.8 w-3.8" />
                                                   </button>
-                                                )}
+
+                                                  {/* Duplicate Button */}
+                                                  <button
+                                                    onClick={() => triggerDuplicateExpense(e)}
+                                                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-purple-400 hover:border-purple-500/20 hover:bg-purple-500/5 transition cursor-pointer"
+                                                    title="Duplicate Expense"
+                                                  >
+                                                    <Copy className="h-3.8 w-3.8" />
+                                                  </button>
+
+                                                  {/* Delete Button — inline two-step confirmation */}
+                                                  {deleteConfirmId === e.id ? (
+                                                    <div className="flex items-center gap-1.5 animate-fade-in">
+                                                      <button
+                                                        onClick={() => handleDeleteExpense(e.id)}
+                                                        className="px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                                      >
+                                                        Confirm
+                                                      </button>
+                                                      <button
+                                                        onClick={() => setDeleteConfirmId(null)}
+                                                        className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                                                      >
+                                                        Cancel
+                                                      </button>
+                                                    </div>
+                                                  ) : (
+                                                    <button
+                                                      onClick={() => setDeleteConfirmId(e.id)}
+                                                      className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-500 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition cursor-pointer"
+                                                      title="Delete Expense"
+                                                    >
+                                                      <Trash2 className="h-3.8 w-3.8" />
+                                                    </button>
+                                                  )}
+                                                </div>
                                               </div>
                                             </div>
                                           );
@@ -1730,22 +1733,25 @@ export default function GroupDetailsPage() {
                                                 setViewingEventId(s.id);
                                                 setViewingEventType("SETTLEMENT");
                                               }}
-                                              className="glass-card rounded-2xl p-4 bg-zinc-900/30 border-dashed border-zinc-800/40 flex items-center justify-between gap-4 transition-all duration-300 hover:border-zinc-700/30 hover:bg-zinc-900/15 cursor-pointer"
+                                              className="glass-card rounded-2xl p-4 bg-zinc-900/30 border-dashed border-zinc-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-300 hover:border-zinc-700/30 hover:bg-zinc-900/15 cursor-pointer"
                                             >
-                                              <div className="flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="h-9 w-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
                                                   <CheckCircle className="h-4 w-4" />
                                                 </div>
-                                                <div>
-                                                  <p className="text-xs text-zinc-400 font-semibold">
+                                                <div className="min-w-0 flex-1">
+                                                  <p className="text-xs text-zinc-400 font-semibold truncate">
                                                     <span className="text-white font-bold">{s.paidBy?.name}</span> paid{" "}
                                                     <span className="text-white font-bold">{s.paidTo?.name}</span>
                                                   </p>
-                                                  {s.note && <p className="text-[10px] text-zinc-500 italic mt-0.5">"{s.note}"</p>}
+                                                  {s.note && <p className="text-[10px] text-zinc-500 italic mt-0.5 truncate">"{s.note}"</p>}
                                                 </div>
                                               </div>
 
-                                              <p className="text-sm font-extrabold text-emerald-400">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                              <div className="flex items-center justify-between sm:justify-end border-t border-white/5 pt-2.5 sm:border-0 sm:pt-0 no-row-click flex-shrink-0">
+                                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider sm:hidden">Transfer Amount</span>
+                                                <p className="text-sm font-extrabold text-emerald-400">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                              </div>
                                             </div>
                                           );
                                         }
@@ -2268,7 +2274,7 @@ export default function GroupDetailsPage() {
                         <div className="flex items-center gap-3">
                           <div className="text-right flex-shrink-0">
                             {member.netBalance > 0.005 ? (
-                              <p className="text-emerald-400 font-bold">Owes them ₹{member.netBalance.toFixed(2)}</p>
+                              <p className="text-emerald-400 font-bold">Gets back ₹{member.netBalance.toFixed(2)}</p>
                             ) : member.netBalance < -0.005 ? (
                               <p className="text-rose-400 font-bold">Owes others ₹{Math.abs(member.netBalance).toFixed(2)}</p>
                             ) : (
