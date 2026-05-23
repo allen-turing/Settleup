@@ -15,7 +15,8 @@ export default async function HomePage() {
     <div className="flex-1 flex flex-col min-h-screen">
       {/* Navigation Header */}
       <header className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-white/5 backdrop-blur-md sticky top-0 z-50">
-        <Link href="/" className="text-2xl font-bold tracking-tight">
+        <Link href="/" className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <img src="/logo.png" alt="PayPaySplit Logo" className="h-7 w-7 rounded-lg shadow-md shadow-purple-500/25 object-cover" />
           <span className="gradient-text">PayPaySplit</span>
         </Link>
         <nav className="flex items-center gap-4">

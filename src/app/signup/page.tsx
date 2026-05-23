@@ -52,7 +52,8 @@ export default function SignupPage() {
     <main className="flex-1 flex flex-col justify-center items-center px-4 py-16 sm:px-6 lg:px-8">
       <div className="w-full max-w-md">
         {/* App Logo/Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 flex flex-col items-center justify-center">
+          <img src="/logo.png" alt="PayPaySplit Logo" className="h-16 w-16 rounded-2xl shadow-xl shadow-purple-500/20 object-cover mb-4 border border-purple-500/10" />
           <h1 className="text-4xl font-extrabold tracking-tight">
             <span className="gradient-text">PayPaySplit</span>
           </h1>
