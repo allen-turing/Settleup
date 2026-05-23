@@ -220,6 +220,8 @@ export default function GroupDetailsPage() {
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
   const [filterPaidById, setFilterPaidById] = useState<string | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [viewingEventId, setViewingEventId] = useState<string | null>(null);
+  const [viewingEventType, setViewingEventType] = useState<"EXPENSE" | "SETTLEMENT" | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -275,6 +277,46 @@ export default function GroupDetailsPage() {
   const [editGroupDesc, setEditGroupDesc] = useState("");
   const [editGroupLoading, setEditGroupLoading] = useState(false);
   const [editGroupError, setEditGroupError] = useState("");
+
+  // Derived state lifted to top level for feed rendering and keyboard details navigation
+  const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById);
+  const _filteredExpenses = expenses.filter((e) => {
+    const mOk = !filterMemberId || e.paidById === filterMemberId || (e.participants || []).some((p: any) => p.userId === filterMemberId);
+    const cOk = !filterCategoryId || e.category?.id === filterCategoryId;
+    const pOk = !filterPaidById || e.paidById === filterPaidById;
+    return mOk && cOk && pOk;
+  });
+
+  const sortedEvents = [
+    ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime(), rawDate: e.expenseDate })),
+    ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime(), rawDate: s.settlementDate })) : []),
+  ].sort((a, b) => b.dateKey - a.dateKey);
+
+  // Keyboard navigation for Details Modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!viewingEventId) return;
+
+      const idx = sortedEvents.findIndex(event => event.id === viewingEventId && event.type === viewingEventType);
+      if (idx === -1) return;
+
+      if (e.key === "ArrowLeft" && idx > 0) {
+        const prevEvent = sortedEvents[idx - 1];
+        setViewingEventId(prevEvent.id);
+        setViewingEventType(prevEvent.type);
+      } else if (e.key === "ArrowRight" && idx < sortedEvents.length - 1) {
+        const nextEvent = sortedEvents[idx + 1];
+        setViewingEventId(nextEvent.id);
+        setViewingEventType(nextEvent.type);
+      } else if (e.key === "Escape") {
+        setViewingEventId(null);
+        setViewingEventType(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewingEventId, viewingEventType, sortedEvents]);
 
   useEffect(() => {
     fetchGroupDetails();
@@ -1081,13 +1123,6 @@ export default function GroupDetailsPage() {
                   const _uniqueCategories = Array.from(new Map(
                     expenses.filter((e) => e.category).map((e) => [e.category!.id, e.category!])
                   ).values());
-                  const _filteredExpenses = expenses.filter((e) => {
-                    const mOk = !filterMemberId || e.paidById === filterMemberId || (e.participants || []).some((p: any) => p.userId === filterMemberId);
-                    const cOk = !filterCategoryId || e.category?.id === filterCategoryId;
-                    const pOk = !filterPaidById || e.paidById === filterPaidById;
-                    return mOk && cOk && pOk;
-                  });
-                  const _isFiltered = !!(filterMemberId || filterCategoryId || filterPaidById);
 
                   // Calculate live totals for the filters based on current applied filters
                   // 1. memberShareTotal: selected member's share filtered by Category & Payer
@@ -1464,11 +1499,6 @@ export default function GroupDetailsPage() {
                         </div>
                       ) : (
                         (() => {
-                          const sortedEvents = [
-                            ..._filteredExpenses.map((e) => ({ ...e, type: "EXPENSE" as const, dateKey: new Date(e.expenseDate).getTime(), rawDate: e.expenseDate })),
-                            ...(!_isFiltered ? settlements.map((s) => ({ ...s, type: "SETTLEMENT" as const, dateKey: new Date(s.settlementDate).getTime(), rawDate: s.settlementDate })) : []),
-                          ].sort((a, b) => b.dateKey - a.dateKey);
-
                           // Group events by date string (YYYY-MM-DD)
                           const groups: { [dateStr: string]: typeof sortedEvents } = {};
                           sortedEvents.forEach((event) => {
@@ -1520,7 +1550,8 @@ export default function GroupDetailsPage() {
                           };
 
                           return (
-                            <div className="space-y-6">
+                            <>
+                              <div className="space-y-6">
                               {sortedDateKeys.map((dateKey) => {
                                 const dayEvents = groups[dateKey];
                                 const dayExpenses = dayEvents.filter((event) => event.type === "EXPENSE");
@@ -1554,7 +1585,15 @@ export default function GroupDetailsPage() {
                                           return (
                                             <div
                                               key={e.id}
-                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10"
+                                              onClick={(event) => {
+                                                const target = event.target as HTMLElement;
+                                                if (target.closest('.no-row-click') || target.closest('button')) {
+                                                  return;
+                                                }
+                                                setViewingEventId(e.id);
+                                                setViewingEventType("EXPENSE");
+                                              }}
+                                              className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10 cursor-pointer"
                                             >
                                               <div className="flex items-center gap-4 flex-1 min-w-0">
                                                 {/* Category Icon Badge */}
@@ -1569,7 +1608,7 @@ export default function GroupDetailsPage() {
                                                 </div>
                                               </div>
 
-                                              <div className="flex items-center gap-4">
+                                              <div className="flex items-center gap-4 no-row-click">
                                                 <div className="text-right relative group/amount cursor-help">
                                                   <p className="text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
                                                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-1 inline-block">
@@ -1578,9 +1617,17 @@ export default function GroupDetailsPage() {
 
                                                   {/* Glassmorphic Hover Share Distribution Tooltip */}
                                                   <div className="bg-zinc-950/95 border border-zinc-800 backdrop-blur-md opacity-0 invisible scale-95 origin-bottom-right group-hover/amount:opacity-100 group-hover/amount:visible group-hover/amount:scale-100 transition-all duration-200 pointer-events-none shadow-2xl absolute right-0 bottom-full mb-2.5 z-30 w-64 p-3.5 rounded-xl text-left">
-                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2 border-b border-white/5 pb-1.5">
-                                                      Share Distribution
-                                                    </p>
+                                                    <div className="flex items-center justify-between border-b border-white/5 pb-1.5 mb-2 gap-2">
+                                                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                                                        Share Distribution
+                                                      </p>
+                                                      {e.category && (
+                                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${Meta.color}`}>
+                                                          <IconComponent className="h-2.5 w-2.5" />
+                                                          <span>{e.category.name}</span>
+                                                        </span>
+                                                      )}
+                                                    </div>
                                                     <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5">
                                                       {(() => {
                                                         let displayParticipants = e.participants || [];
@@ -1675,7 +1722,15 @@ export default function GroupDetailsPage() {
                                           return (
                                             <div
                                               key={s.id}
-                                              className="glass-card rounded-2xl p-4 bg-zinc-900/30 border-dashed border-zinc-800/40 flex items-center justify-between gap-4 transition-all duration-300 hover:border-zinc-700/30 hover:bg-zinc-900/15"
+                                              onClick={(event) => {
+                                                const target = event.target as HTMLElement;
+                                                if (target.closest('.no-row-click') || target.closest('button')) {
+                                                  return;
+                                                }
+                                                setViewingEventId(s.id);
+                                                setViewingEventType("SETTLEMENT");
+                                              }}
+                                              className="glass-card rounded-2xl p-4 bg-zinc-900/30 border-dashed border-zinc-800/40 flex items-center justify-between gap-4 transition-all duration-300 hover:border-zinc-700/30 hover:bg-zinc-900/15 cursor-pointer"
                                             >
                                               <div className="flex items-center gap-3">
                                                 <div className="h-9 w-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -1700,7 +1755,273 @@ export default function GroupDetailsPage() {
                                 );
                               })}
                             </div>
-                          );
+
+                            {/* DETAILED RECORD MODAL */}
+                            {(() => {
+                              const viewingEventIndex = viewingEventId 
+                                ? sortedEvents.findIndex(event => event.id === viewingEventId && event.type === viewingEventType) 
+                                : -1;
+                              const viewingEvent = viewingEventIndex !== -1 ? sortedEvents[viewingEventIndex] : null;
+
+                              const goToNextEvent = () => {
+                                if (viewingEventIndex < sortedEvents.length - 1) {
+                                  const nextEvent = sortedEvents[viewingEventIndex + 1];
+                                  setViewingEventId(nextEvent.id);
+                                  setViewingEventType(nextEvent.type);
+                                }
+                              };
+
+                              const goToPrevEvent = () => {
+                                if (viewingEventIndex > 0) {
+                                  const prevEvent = sortedEvents[viewingEventIndex - 1];
+                                  setViewingEventId(prevEvent.id);
+                                  setViewingEventType(prevEvent.type);
+                                }
+                              };
+
+                              if (!viewingEvent) return null;
+
+                              return (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                  {/* Backdrop */}
+                                  <div 
+                                    onClick={() => { setViewingEventId(null); setViewingEventType(null); }}
+                                    className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" 
+                                  />
+                                  
+                                  {/* Modal Body */}
+                                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative z-10 animate-scale-up flex flex-col max-h-[90vh]">
+                                    
+                                    {/* Modal Header */}
+                                    <div className="p-6 pb-4 border-b border-white/5 flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        {viewingEvent.type === "EXPENSE" ? (
+                                          (() => {
+                                            const e = viewingEvent as any;
+                                            const Meta = resolveCategoryMeta(e.category);
+                                            const IconComponent = Meta.icon;
+                                            return (
+                                              <>
+                                                <div className={`h-10 w-10 rounded-xl border flex items-center justify-center ${Meta.color}`}>
+                                                  <IconComponent className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-500">Expense Details</span>
+                                                  <h3 className="text-base font-bold text-white leading-tight">{e.title}</h3>
+                                                </div>
+                                              </>
+                                            );
+                                          })()
+                                        ) : (
+                                          <>
+                                            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                              <CheckCircle className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-500">Settlement Payment</span>
+                                              <h3 className="text-base font-bold text-white leading-tight">Member Transfer</h3>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                      
+                                      <button 
+                                        onClick={() => { setViewingEventId(null); setViewingEventType(null); }}
+                                        className="p-2 rounded-xl bg-zinc-800/40 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700/80 transition cursor-pointer"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+
+                                    {/* Modal Content */}
+                                    <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                                      {viewingEvent.type === "EXPENSE" ? (
+                                        (() => {
+                                          const e = viewingEvent as any;
+                                          const Meta = resolveCategoryMeta(e.category);
+                                          const IconComponent = Meta.icon;
+                                          let displayParticipants = e.participants || [];
+                                          if (displayParticipants.length === 0 || e.splitType === "SELF") {
+                                            displayParticipants = [{
+                                              userId: e.paidById,
+                                              shareAmount: e.totalAmount,
+                                              user: { name: e.paidBy?.name || "Payer" }
+                                            }];
+                                          }
+
+                                          return (
+                                            <>
+                                              {/* Amount banner */}
+                                              <div className="bg-zinc-950/40 border border-white/5 rounded-2xl p-5 text-center relative overflow-hidden">
+                                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Total Cost</p>
+                                                <p className="text-3xl font-extrabold text-white mt-1">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
+                                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full mt-2 inline-block">
+                                                  {e.splitType === "SELF" ? "Self Only" : `${e.splitType} Split`}
+                                                </span>
+                                              </div>
+
+                                              {/* Transaction Metadata */}
+                                              <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-3.5">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Paid By</p>
+                                                  <p className="text-sm font-extrabold text-white mt-1">{e.paidBy?.name}</p>
+                                                </div>
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-3.5">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Category</p>
+                                                  <div className="flex items-center gap-1.5 mt-1">
+                                                    <IconComponent className={`h-4 w-4 ${Meta.color.split(" ")[1]}`} />
+                                                    <p className="text-sm font-extrabold text-white">{e.category?.name || "Uncategorized"}</p>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Description */}
+                                              {e.description && (
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-4">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Description</p>
+                                                  <p className="text-xs text-zinc-300 leading-relaxed font-medium italic">"{e.description}"</p>
+                                                </div>
+                                              )}
+
+                                              {/* Share distribution list */}
+                                              <div className="space-y-2.5">
+                                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider border-b border-white/5 pb-2">
+                                                  Share Breakdown ({displayParticipants.length} {displayParticipants.length === 1 ? 'Person' : 'People'})
+                                                </p>
+                                                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                                  {displayParticipants.map((p: any) => {
+                                                    let extraLabel = "";
+                                                    if (e.splitType === "PERCENTAGE" && p.percentage !== null && p.percentage !== undefined) {
+                                                      extraLabel = ` (${p.percentage}%)`;
+                                                    } else if (e.splitType === "SHARES" && p.shares !== null && p.shares !== undefined) {
+                                                      extraLabel = ` (${p.shares} ${p.shares === 1 ? 'share' : 'shares'})`;
+                                                    }
+
+                                                    return (
+                                                      <div key={p.userId} className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/20 border border-white/[0.02]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                          <span className="text-xs text-zinc-300 font-bold truncate">
+                                                            {p.user?.name || "Member"}
+                                                          </span>
+                                                          {p.userId === e.paidById && (
+                                                            <span className="text-[9px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1 py-0.2 rounded font-bold">
+                                                              Payer
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        <span className="text-xs text-white font-extrabold flex-shrink-0">
+                                                          ₹{parseFloat(p.shareAmount).toFixed(2)}{extraLabel}
+                                                        </span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            </>
+                                          );
+                                        })()
+                                      ) : (
+                                        (() => {
+                                          const s = viewingEvent as any;
+                                          return (
+                                            <>
+                                              {/* Amount banner */}
+                                              <div className="bg-zinc-950/40 border border-white/5 rounded-2xl p-5 text-center relative overflow-hidden">
+                                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Settlement Transfer</p>
+                                                <p className="text-3xl font-extrabold text-emerald-400 mt-1">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                              </div>
+
+                                              {/* Transfer Metadata */}
+                                              <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-3.5">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">From (Sender)</p>
+                                                  <p className="text-sm font-extrabold text-white mt-1">{s.paidBy?.name}</p>
+                                                </div>
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-3.5">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">To (Recipient)</p>
+                                                  <p className="text-sm font-extrabold text-white mt-1">{s.paidTo?.name}</p>
+                                                </div>
+                                              </div>
+
+                                              {/* Note */}
+                                              {s.note && (
+                                                <div className="bg-zinc-950/20 border border-white/5 rounded-xl p-4">
+                                                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Transfer Note</p>
+                                                  <p className="text-xs text-zinc-300 leading-relaxed font-medium italic">"{s.note}"</p>
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()
+                                      )}
+                                    </div>
+
+                                    {/* Modal Footer (Edit/Duplicate Actions + Next/Prev Navigation) */}
+                                    <div className="p-4 bg-zinc-950/40 border-t border-white/5 flex items-center justify-between gap-4">
+                                      {/* Next & Previous Controls */}
+                                      <div className="flex items-center gap-1.5 no-row-click">
+                                        <button
+                                          disabled={viewingEventIndex === 0}
+                                          onClick={goToPrevEvent}
+                                          className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 disabled:cursor-not-allowed cursor-pointer transition"
+                                          title="Previous Record (Left Arrow)"
+                                        >
+                                          <ArrowLeft className="h-4 w-4" />
+                                        </button>
+                                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                                          {viewingEventIndex + 1} / {sortedEvents.length}
+                                        </span>
+                                        <button
+                                          disabled={viewingEventIndex === sortedEvents.length - 1}
+                                          onClick={goToNextEvent}
+                                          className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 disabled:cursor-not-allowed cursor-pointer transition"
+                                          title="Next Record (Right Arrow)"
+                                        >
+                                          <ArrowRight className="h-4 w-4" />
+                                        </button>
+                                      </div>
+
+                                      {/* Record Modification Controls */}
+                                      {viewingEvent.type === "EXPENSE" ? (
+                                        <div className="flex items-center gap-2 no-row-click">
+                                          <button
+                                            onClick={() => {
+                                              const e = viewingEvent;
+                                              setViewingEventId(null);
+                                              setViewingEventType(null);
+                                              triggerEditExpense(e);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition cursor-pointer"
+                                          >
+                                            <Edit2 className="h-3 w-3" />
+                                            <span>Edit</span>
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              const e = viewingEvent;
+                                              setViewingEventId(null);
+                                              setViewingEventType(null);
+                                              triggerDuplicateExpense(e);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                            <span>Duplicate</span>
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                                          Transfer Record
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        );
                         })()
                       )}
                     </div>
