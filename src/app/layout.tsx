@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PayPaySplit — Expense Sharing & Debt Simplification",
-  description: "A modern glassmorphic expense sharing and debt simplification app to split expenses with friends and settle circular debts greedily.",
+  title: "PayPaySplit — Split Bills, Track Debts, Preserve Friendships",
+  description: "A delightfully judgmental expense-sharing app for tracking group spending, splitting bills fairly, and exposing the friend who still owes ₹248.50 from Goa.",
 };
 
 export default function RootLayout({

@@ -579,12 +579,12 @@ export default function GroupDetailsPage() {
   };
 
   const getWhatsAppShareUrl = () => {
-    const text = `Hey! Join our "${group?.name || 'Expenses'}" on PayPaySplit, Because *“we’ll split it later” has ruined civilizations*: ${window.location.origin}/signup?group=${groupId}`;
+    const text = `Hey! Join our "${group?.name || 'Expenses'}" group on PayPaySplit, Because *“we’ll split it later” has ruined civilizations*: ${window.location.origin}/signup?group=${groupId}`;
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
   };
 
   const getSmsShareUrl = () => {
-    const text = `Hey! Join our "${group?.name || 'Expenses'}" on PayPaySplit, Because “we’ll split it later” has ruined civilizations: ${window.location.origin}/signup?group=${groupId}`;
+    const text = `Hey! Join our "${group?.name || 'Expenses'}" group on PayPaySplit, Because “we’ll split it later” has ruined civilizations: ${window.location.origin}/signup?group=${groupId}`;
     return `sms:?&body=${encodeURIComponent(text)}`;
   };
 
