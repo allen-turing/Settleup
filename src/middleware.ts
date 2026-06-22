@@ -17,7 +17,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/profile");
 
   const isApi = pathname.startsWith("/api");
-  const isPublicApi = pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/signup");
+  const isPublicApi =
+    pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/auth/signup") ||
+    pathname.startsWith("/api/auth/google");
 
   // Get the token cookie
   const token = request.cookies.get("token")?.value;
