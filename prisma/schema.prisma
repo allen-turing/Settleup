@@ -17,6 +17,7 @@ model User {
   createdAt           DateTime             @default(now())
   lastExpenseSeenAt   DateTime?
   upiId               String?
+  googleId            String?              @unique
   
   createdGroups       Group[]              @relation("GroupCreator")
   groups              GroupMember[]
