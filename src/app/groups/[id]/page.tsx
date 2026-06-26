@@ -232,6 +232,7 @@ export default function GroupDetailsPage() {
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [viewingEventType, setViewingEventType] = useState<"EXPENSE" | "SETTLEMENT" | null>(null);
+  const [activeDistributionId, setActiveDistributionId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -387,6 +388,18 @@ export default function GroupDetailsPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [viewingEventId, viewingEventType, sortedEvents]);
+
+  useEffect(() => {
+    if (!activeDistributionId) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".distribution-trigger") && !target.closest(".distribution-tooltip")) {
+        setActiveDistributionId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [activeDistributionId]);
 
   useEffect(() => {
     fetchGroupDetails();
@@ -2222,6 +2235,18 @@ export default function GroupDetailsPage() {
                                               }}
                                               className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 group relative transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/10 cursor-pointer"
                                             >
+                                              {/* Mobile View Share Distribution Button */}
+                                              <button
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  setActiveDistributionId(activeDistributionId === e.id ? null : e.id);
+                                                }}
+                                                className="no-row-click distribution-trigger absolute top-4 right-4 sm:hidden p-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-400 hover:text-white transition flex items-center justify-center cursor-pointer z-20"
+                                                title="View Share Distribution"
+                                              >
+                                                <Users className="h-3.5 w-3.5" />
+                                              </button>
+
                                               <div className="flex items-center gap-3.5 flex-1 min-w-0">
                                                 {/* Category Icon Badge */}
                                                 <div className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${Meta.color}`}>
@@ -2243,7 +2268,9 @@ export default function GroupDetailsPage() {
                                                   </span>
 
                                                   {/* Glassmorphic Hover Share Distribution Tooltip */}
-                                                  <div className="bg-zinc-950/95 border border-zinc-800 backdrop-blur-md opacity-0 invisible scale-95 origin-bottom-right group-hover/amount:opacity-100 group-hover/amount:visible group-hover/amount:scale-100 transition-all duration-200 pointer-events-none shadow-2xl absolute right-0 bottom-full mb-2.5 z-30 w-64 p-3.5 rounded-xl text-left">
+                                                  <div className={`bg-zinc-950/95 border border-zinc-800 backdrop-blur-md opacity-0 invisible scale-95 origin-bottom-left sm:origin-bottom-right group-hover/amount:opacity-100 group-hover/amount:visible group-hover/amount:scale-100 transition-all duration-200 pointer-events-none shadow-2xl absolute left-0 sm:left-auto sm:right-0 bottom-full mb-2.5 z-30 w-64 p-3.5 rounded-xl text-left distribution-tooltip ${
+                                                    activeDistributionId === e.id ? "opacity-100 visible scale-100 pointer-events-auto" : ""
+                                                  }`}>
                                                     <div className="flex items-center justify-between border-b border-white/5 pb-1.5 mb-2 gap-2">
                                                       <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
                                                         Share Distribution
@@ -2294,7 +2321,7 @@ export default function GroupDetailsPage() {
                                                         });
                                                       })()}
                                                     </div>
-                                                    <div className="absolute right-4 top-full w-2 h-2 -translate-y-1 rotate-45 border-r border-b border-zinc-800 bg-zinc-950/95" />
+                                                    <div className="absolute left-4 sm:left-auto sm:right-4 top-full w-2 h-2 -translate-y-1 rotate-45 border-r border-b border-zinc-800 bg-zinc-950/95" />
                                                   </div>
                                                 </div>
 
