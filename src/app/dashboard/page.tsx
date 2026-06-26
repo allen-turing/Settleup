@@ -21,7 +21,8 @@ import {
   UserCircle,
   Archive,
   ArchiveRestore,
-  Trash2
+  Trash2,
+  Bell
 } from "lucide-react";
 
 interface GroupSummary {
@@ -65,6 +66,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expenseNotification, setExpenseNotification] = useState<ExpenseUpdateNotification | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Group Archive and Delete states
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -110,8 +112,8 @@ export default function DashboardPage() {
       const groupsData = await groupsRes.json();
       setGroups(groupsData.groups);
 
-      // 3. Fetch teammate expense updates since the last seen point
-      const notifyRes = await fetch("/api/notifications/expense-updates?markAsSeen=true");
+      // 3. Fetch teammate expense updates since the last seen point (do not mark as seen yet)
+      const notifyRes = await fetch("/api/notifications/expense-updates?markAsSeen=false");
       if (notifyRes.ok) {
         const notifyData = await notifyRes.json();
         setExpenseNotification(notifyData);
@@ -120,6 +122,30 @@ export default function DashboardPage() {
       setError(err.message || "Failed to load dashboard data.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".notification-container")) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [notificationsOpen]);
+
+  const handleNotificationClick = async () => {
+    setNotificationsOpen(!notificationsOpen);
+    if (!notificationsOpen && expenseNotification && expenseNotification.totalNewExpenses > 0) {
+      try {
+        await fetch("/api/notifications/expense-updates?markAsSeen=true");
+        setExpenseNotification((prev) => prev ? { ...prev, totalNewExpenses: 0 } : null);
+      } catch (err) {
+        console.error("Failed to mark notifications as seen", err);
+      }
     }
   };
 
@@ -275,6 +301,81 @@ export default function DashboardPage() {
           </Link>
 
           <div className="flex items-center gap-3">
+            {/* Notifications Dropdown */}
+            {user && (
+              <div className="notification-container relative flex items-center">
+                <button
+                  onClick={handleNotificationClick}
+                  className="relative p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition flex items-center justify-center cursor-pointer"
+                  title="Notifications"
+                >
+                  <Bell className="h-4.5 w-4.5" />
+                  {expenseNotification && expenseNotification.totalNewExpenses > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-black ring-2 ring-zinc-950 animate-pulse">
+                      {expenseNotification.totalNewExpenses}
+                    </span>
+                  )}
+                </button>
+
+                {notificationsOpen && (
+                  <div className="fixed top-[72px] left-4 right-4 w-auto z-50 sm:absolute sm:top-full sm:right-0 sm:left-auto sm:w-96 sm:mt-2 rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl animate-fade-in">
+                    <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-cyan-400" />
+                        Group Updates
+                      </h3>
+                      {expenseNotification && expenseNotification.totalNewExpenses > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                          New
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="py-2 max-h-72 overflow-y-auto space-y-3 custom-scrollbar mt-2">
+                      {expenseNotification && expenseNotification.preview.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {expenseNotification.preview.map((p) => (
+                            <div key={p.id} className="text-xs p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition">
+                              <div className="flex justify-between items-start gap-1">
+                                <span className="font-semibold text-white">{p.paidByName}</span>
+                                <span className="text-[10px] text-zinc-500 shrink-0">
+                                  {new Date(p.createdAt).toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit"
+                                  })}
+                                </span>
+                              </div>
+                              <p className="text-zinc-300 mt-1">
+                                Added <span className="text-white font-medium">"{p.title}"</span> in <span className="text-cyan-400">{p.groupName}</span>
+                              </p>
+                              <div className="mt-1.5 flex items-center justify-between">
+                                <span className="text-zinc-500 text-[10px]">Amount</span>
+                                <span className="font-bold text-emerald-400">₹{p.totalAmount.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-zinc-500 space-y-2">
+                          <CheckCircle2 className="h-8 w-8 mx-auto text-zinc-600" />
+                          <p className="text-xs font-medium">No new updates</p>
+                          <p className="text-[10px] text-zinc-600">You are completely caught up!</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {expenseNotification && expenseNotification.since && (
+                      <div className="pt-2 border-t border-white/5 text-[10px] text-zinc-500 text-center mt-2">
+                        Showing updates since {new Date(expenseNotification.since).toLocaleString("en-IN")}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Link
               href="/profile"
               className="text-right hidden sm:block group"
@@ -332,47 +433,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Teammate expense updates since your previous visit */}
-            {expenseNotification?.hasUpdates && (
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-5">
-                <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-cyan-200">
-                      {expenseNotification.totalNewExpenses} new expense{expenseNotification.totalNewExpenses > 1 ? "s" : ""} added while you were away
-                    </h3>
-                    <p className="text-xs text-cyan-100/80 mt-1">
-                      Since {new Date(expenseNotification.since).toLocaleString("en-IN")}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {expenseNotification.updatesByGroup.map((g) => (
-                        <span
-                          key={g.groupId}
-                          className="text-[11px] px-2 py-1 rounded-full bg-zinc-900/70 border border-cyan-400/20 text-cyan-100"
-                        >
-                          {g.groupName}: {g.count}
-                        </span>
-                      ))}
-                    </div>
-
-                    {expenseNotification.preview.length > 0 && (
-                      <div className="mt-3 space-y-1.5">
-                        {expenseNotification.preview.map((p) => (
-                          <p key={p.id} className="text-xs text-zinc-300">
-                            <span className="text-cyan-300 font-semibold">{p.paidByName}</span> added
-                            <span className="text-white font-semibold"> {p.title}</span> in {p.groupName}
-                            <span className="text-zinc-400"> (₹{p.totalAmount.toFixed(2)})</span>
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Notifications are now accessible via the Bell icon in the header */}
 
             {/* Net Balance visualizer card */}
             <div className="glass-card rounded-3xl p-6 md:p-8 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
