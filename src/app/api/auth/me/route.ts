@@ -21,6 +21,7 @@ export async function GET() {
         email: true,
         upiId: true,
         createdAt: true,
+        passwordHash: true,
       },
     });
 
@@ -31,7 +32,17 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ user }, { status: 200 });
+    const { passwordHash, ...userWithoutPassword } = user;
+
+    return NextResponse.json(
+      {
+        user: {
+          ...userWithoutPassword,
+          hasPassword: passwordHash !== "",
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error("Auth Me error:", error);
     return NextResponse.json(
@@ -95,19 +106,24 @@ export async function PATCH(request: Request) {
 
     // --- Password update ---
     if (newPassword !== undefined) {
-      if (!currentPassword) {
-        return NextResponse.json(
-          { error: "Current password is required to set a new password." },
-          { status: 400 }
-        );
+      const hasExistingPassword = user.passwordHash !== "";
+      
+      if (hasExistingPassword) {
+        if (!currentPassword) {
+          return NextResponse.json(
+            { error: "Current password is required to set a new password." },
+            { status: 400 }
+          );
+        }
+        const valid = await comparePassword(currentPassword, user.passwordHash);
+        if (!valid) {
+          return NextResponse.json(
+            { error: "Current password is incorrect." },
+            { status: 400 }
+          );
+        }
       }
-      const valid = await comparePassword(currentPassword, user.passwordHash);
-      if (!valid) {
-        return NextResponse.json(
-          { error: "Current password is incorrect." },
-          { status: 400 }
-        );
-      }
+      
       if (newPassword.length < 8) {
         return NextResponse.json(
           { error: "New password must be at least 8 characters." },
@@ -124,12 +140,20 @@ export async function PATCH(request: Request) {
     const updated = await prisma.user.update({
       where: { id: payload.userId },
       data: updates,
-      select: { id: true, name: true, email: true, upiId: true, createdAt: true },
+      select: { id: true, name: true, email: true, upiId: true, createdAt: true, passwordHash: true },
     });
+
+    const { passwordHash: updatedHash, ...updatedUser } = updated;
 
     // If email changed, re-issue JWT so middleware stays valid
     const response = NextResponse.json(
-      { message: "Profile updated successfully.", user: updated },
+      {
+        message: "Profile updated successfully.",
+        user: {
+          ...updatedUser,
+          hasPassword: updatedHash !== "",
+        },
+      },
       { status: 200 }
     );
 

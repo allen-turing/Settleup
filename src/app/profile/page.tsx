@@ -25,6 +25,7 @@ interface UserProfile {
   email: string;
   upiId: string | null;
   createdAt: string;
+  hasPassword?: boolean;
 }
 
 type Status = { type: "success" | "error"; message: string } | null;
@@ -104,14 +105,21 @@ export default function ProfilePage() {
     setPwLoading(true);
     setPwStatus(null);
     try {
+      const payload: Record<string, string> = { newPassword };
+      if (user?.hasPassword) {
+        payload.currentPassword = currentPassword;
+      }
       const res = await fetch("/api/auth/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update password.");
       setPwStatus({ type: "success", message: "Password changed successfully!" });
+      if (data.user) {
+        setUser(data.user);
+      }
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -320,31 +328,37 @@ export default function ProfilePage() {
           )}
 
           <form onSubmit={handlePasswordSave} className="space-y-4">
-            {/* Current Password */}
-            <div>
-              <label htmlFor="current-password" className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Current Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600 pointer-events-none" />
-                <input
-                  id="current-password"
-                  type={showCurrent ? "text" : "password"}
-                  required
-                  value={currentPassword}
-                  onChange={(e) => { setCurrentPassword(e.target.value); setPwStatus(null); }}
-                  className="w-full pl-9 pr-10 py-2.5 bg-zinc-900/60 border border-zinc-800 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 rounded-xl text-sm text-white placeholder-zinc-600 outline-none transition"
-                  placeholder="Your current password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrent((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
-                >
-                  {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+            {/* Current Password / Info Note */}
+            {user?.hasPassword ? (
+              <div>
+                <label htmlFor="current-password" className="block text-xs font-medium text-zinc-400 mb-1.5">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600 pointer-events-none" />
+                  <input
+                    id="current-password"
+                    type={showCurrent ? "text" : "password"}
+                    required
+                    value={currentPassword}
+                    onChange={(e) => { setCurrentPassword(e.target.value); setPwStatus(null); }}
+                    className="w-full pl-9 pr-10 py-2.5 bg-zinc-900/60 border border-zinc-800 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 rounded-xl text-sm text-white placeholder-zinc-600 outline-none transition"
+                    placeholder="Your current password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrent((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+                  >
+                    {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/25 text-xs text-blue-300/90 leading-relaxed font-semibold">
+                You logged in using Google and don't have a password set yet. Add a password below to enable standard email/password login.
+              </div>
+            )}
 
             {/* New Password */}
             <div>
@@ -426,7 +440,7 @@ export default function ProfilePage() {
 
             <button
               type="submit"
-              disabled={pwLoading || !currentPassword || !newPassword || !confirmPassword}
+              disabled={pwLoading || (user?.hasPassword && !currentPassword) || !newPassword || !confirmPassword}
               className="flex items-center gap-2 py-2.5 px-5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition cursor-pointer shadow shadow-blue-500/20"
             >
               {pwLoading ? (
