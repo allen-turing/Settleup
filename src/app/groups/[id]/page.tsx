@@ -1400,7 +1400,6 @@ export default function GroupDetailsPage() {
             >
               <div className="min-w-0 pr-2">
                 <p className="text-white font-semibold truncate">{member.userName}</p>
-                <p className="text-[10px] text-zinc-500 truncate">{member.email}</p>
               </div>
 
               <div className="flex items-center gap-3">
