@@ -88,6 +88,15 @@ const resolveCategoryMeta = (cat: { icon?: string; name?: string } | null | unde
   return CATEGORY_META.HelpCircle;
 };
 
+const formatIndianCurrency = (amount: number | string) => {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (isNaN(num)) return "0.00";
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
 interface Member {
   userId: string;
   name: string;
@@ -916,7 +925,7 @@ export default function GroupDetailsPage() {
     if (Math.abs(netBalance) > 0.005) {
       showCustomAlert(
         "Cannot remove member",
-        `Cannot remove member. ${memberName} has an active outstanding balance of ₹${netBalance > 0 ? "+" : ""}${netBalance.toFixed(2)} and must be fully settled up (₹0.00) first.`
+        `Cannot remove member. ${memberName} has an active outstanding balance of ₹${netBalance > 0 ? "+" : ""}${formatIndianCurrency(netBalance)} and must be fully settled up (₹0.00) first.`
       );
       return;
     }
@@ -1336,7 +1345,7 @@ export default function GroupDetailsPage() {
         <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10 flex items-center justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold">Total Group Spend</p>
-            <h3 className="text-2xl font-extrabold text-white mt-1">₹{analytics.totalSpend.toFixed(2)}</h3>
+            <h3 className="text-2xl font-extrabold text-white mt-1">₹{formatIndianCurrency(analytics.totalSpend)}</h3>
           </div>
           <div className="p-3 bg-purple-500/10 border border-purple-500/25 rounded-xl">
             <Coins className="h-5 w-5 text-purple-400" />
@@ -1367,7 +1376,7 @@ export default function GroupDetailsPage() {
                     <span className="text-white font-bold">{tx.fromName}</span> owes
                   </p>
                   <p className="text-white font-bold mt-0.5">
-                    ₹{tx.amount.toFixed(2)} to {tx.toName}
+                    ₹{formatIndianCurrency(tx.amount)} to {tx.toName}
                   </p>
                 </div>
 
@@ -1405,13 +1414,13 @@ export default function GroupDetailsPage() {
               <div className="flex items-center gap-3">
                 <div className="text-right flex-shrink-0">
                   {member.netBalance > 0.005 ? (
-                    <p className="text-emerald-400 font-bold">Gets back ₹{member.netBalance.toFixed(2)}</p>
+                    <p className="text-emerald-400 font-bold">Gets back ₹{formatIndianCurrency(member.netBalance)}</p>
                   ) : member.netBalance < -0.005 ? (
-                    <p className="text-rose-400 font-bold">Owes others ₹{Math.abs(member.netBalance).toFixed(2)}</p>
+                    <p className="text-rose-400 font-bold">Owes others ₹{formatIndianCurrency(Math.abs(member.netBalance))}</p>
                   ) : (
                     <p className="text-zinc-500">Settled up</p>
                   )}
-                  <p className="text-[9px] text-zinc-600">Paid: ₹{member.totalPaid.toFixed(0)}</p>
+                  <p className="text-[9px] text-zinc-600">Paid: ₹{formatIndianCurrency(member.totalPaid)}</p>
                 </div>
 
                 {/* Delete membership button */}
@@ -1663,7 +1672,7 @@ export default function GroupDetailsPage() {
                               {_isFiltered ? "Filtered Spend" : "Group Total Spend"}
                             </span>
                             <span className={`text-[15px] xs:text-base sm:text-xl font-extrabold mt-1 truncate ${_isFiltered ? "text-purple-400 font-extrabold" : "text-white font-extrabold"}`}>
-                              ₹{filteredTotalSpent.toFixed(2)}
+                              ₹{formatIndianCurrency(filteredTotalSpent)}
                             </span>
                           </div>
 
@@ -1870,7 +1879,7 @@ export default function GroupDetailsPage() {
                                   <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Filter by Person (Part of Expense)</p>
                                   {filterMemberId && (
                                     <span className="text-[10px] font-extrabold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
-                                      Share: ₹{memberShareTotal.toFixed(2)}
+                                      Share: ₹{formatIndianCurrency(memberShareTotal)}
                                     </span>
                                   )}
                                 </div>
@@ -1900,7 +1909,7 @@ export default function GroupDetailsPage() {
                                         <span>{m.name}</span>
                                         {isSelected && (
                                           <span className="bg-white/20 px-1.5 py-0.2 rounded text-[10px] font-extrabold">
-                                            ₹{mShare.toFixed(2)}
+                                            ₹{formatIndianCurrency(mShare)}
                                           </span>
                                         )}
                                       </button>
@@ -1915,8 +1924,8 @@ export default function GroupDetailsPage() {
                                   <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Filter by Paid By (Payer Only)</p>
                                   {filterPaidById && (
                                     <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                                      Paid: ₹{payerTotalPaid.toFixed(2)}
-                                      {filterMemberId && ` • ${members.find(m => m.userId === filterMemberId)?.name || 'Member'}'s Share: ₹${memberShareTotal.toFixed(2)}`}
+                                      Paid: ₹{formatIndianCurrency(payerTotalPaid)}
+                                      {filterMemberId && ` • ${members.find(m => m.userId === filterMemberId)?.name || 'Member'}'s Share: ₹${formatIndianCurrency(memberShareTotal)}`}
                                     </span>
                                   )}
                                 </div>
@@ -1939,7 +1948,7 @@ export default function GroupDetailsPage() {
                                         <span>{m.name}</span>
                                         {isSelected && (
                                           <span className="bg-white/20 px-1.5 py-0.2 rounded text-[10px] font-extrabold">
-                                            ₹{mPaid.toFixed(2)}
+                                            ₹{formatIndianCurrency(mPaid)}
                                           </span>
                                         )}
                                       </button>
@@ -1955,7 +1964,7 @@ export default function GroupDetailsPage() {
                                     <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Filter by Category</p>
                                     {filterCategoryId && (
                                       <span className="text-[10px] font-extrabold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
-                                        Spent: ₹{categoryTotalSpent.toFixed(2)}
+                                        Spent: ₹{formatIndianCurrency(categoryTotalSpent)}
                                       </span>
                                     )}
                                   </div>
@@ -1981,7 +1990,7 @@ export default function GroupDetailsPage() {
                                           <span>{cat.name}</span>
                                           {isSelected && (
                                             <span className="bg-white/20 px-1.5 py-0.2 rounded text-[10px] font-extrabold">
-                                              ₹{catSpent.toFixed(2)}
+                                              ₹{formatIndianCurrency(catSpent)}
                                             </span>
                                           )}
                                         </button>
@@ -2032,18 +2041,18 @@ export default function GroupDetailsPage() {
                                           <>
                                             <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
                                               <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Total Paid</p>
-                                              <p className="text-xs font-extrabold text-emerald-400 mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                              <p className="text-xs font-extrabold text-emerald-400 mt-0.5">₹{formatIndianCurrency(totalPaid)}</p>
                                             </div>
                                             <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2">
                                               <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Actual Cost / Share</p>
-                                              <p className="text-xs font-extrabold text-white mt-0.5">₹{totalShare.toFixed(2)}</p>
+                                              <p className="text-xs font-extrabold text-white mt-0.5">₹{formatIndianCurrency(totalShare)}</p>
                                             </div>
                                           </>
                                         ) : (
                                           <div className="col-span-2 bg-zinc-900/40 border border-zinc-800/50 rounded-lg p-2 flex justify-between items-center">
                                             <div>
                                               <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-semibold">Total Category Spending</p>
-                                              <p className="text-xs font-extrabold text-white mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                                              <p className="text-xs font-extrabold text-white mt-0.5">₹{formatIndianCurrency(totalPaid)}</p>
                                             </div>
                                             <span className="text-[9px] text-zinc-500 font-medium">Across all members</span>
                                           </div>
@@ -2205,7 +2214,7 @@ export default function GroupDetailsPage() {
                                         <span>{formatDateHeader(dateKey)}</span>
                                         {dayTotal > 0 && (
                                           <span className="ml-1.5 px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-400 text-[10px] font-extrabold border border-purple-500/20">
-                                            ₹{dayTotal.toFixed(2)}
+                                            ₹{formatIndianCurrency(dayTotal)}
                                           </span>
                                         )}
                                       </div>
@@ -2261,7 +2270,7 @@ export default function GroupDetailsPage() {
 
                                               <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-white/5 pt-3 sm:border-0 sm:pt-0 no-row-click flex-shrink-0">
                                                 <div className="text-left sm:text-right relative group/amount cursor-help flex-shrink-0">
-                                                  <p className="text-sm sm:text-base font-extrabold text-white">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
+                                                  <p className="text-sm sm:text-base font-extrabold text-white">₹{formatIndianCurrency(e.totalAmount)}</p>
                                                   <span className="text-[9px] sm:text-[10px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded mt-0.5 inline-block">
                                                     {e.splitType === "SELF" ? "Self Only" : `${e.splitType} Split`}
                                                   </span>
@@ -2313,7 +2322,7 @@ export default function GroupDetailsPage() {
                                                                 )}
                                                               </div>
                                                               <span className="text-xs text-white font-extrabold flex-shrink-0">
-                                                                ₹{parseFloat(p.shareAmount).toFixed(2)}{extraLabel}
+                                                                ₹{formatIndianCurrency(p.shareAmount)}{extraLabel}
                                                               </span>
                                                             </div>
                                                           );
@@ -2403,7 +2412,7 @@ export default function GroupDetailsPage() {
 
                                               <div className="flex items-center justify-between sm:justify-end border-t border-white/5 pt-2.5 sm:border-0 sm:pt-0 no-row-click flex-shrink-0">
                                                 <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider sm:hidden">Transfer Amount</span>
-                                                <p className="text-sm font-extrabold text-emerald-400">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                                <p className="text-sm font-extrabold text-emerald-400">₹{formatIndianCurrency(s.amount)}</p>
                                               </div>
                                             </div>
                                           );
@@ -2513,7 +2522,7 @@ export default function GroupDetailsPage() {
                                               {/* Amount banner */}
                                               <div className="bg-zinc-950/40 border border-white/5 rounded-2xl p-5 text-center relative overflow-hidden">
                                                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Total Cost</p>
-                                                <p className="text-3xl font-extrabold text-white mt-1">₹{parseFloat(e.totalAmount).toFixed(2)}</p>
+                                                <p className="text-3xl font-extrabold text-white mt-1">₹{formatIndianCurrency(e.totalAmount)}</p>
                                                 <span className="text-[10px] text-zinc-400 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full mt-2 inline-block">
                                                   {e.splitType === "SELF" ? "Self Only" : `${e.splitType} Split`}
                                                 </span>
@@ -2569,7 +2578,7 @@ export default function GroupDetailsPage() {
                                                           )}
                                                         </div>
                                                         <span className="text-xs text-white font-extrabold flex-shrink-0">
-                                                          ₹{parseFloat(p.shareAmount).toFixed(2)}{extraLabel}
+                                                          ₹{formatIndianCurrency(p.shareAmount)}{extraLabel}
                                                         </span>
                                                       </div>
                                                     );
@@ -2587,7 +2596,7 @@ export default function GroupDetailsPage() {
                                               {/* Amount banner */}
                                               <div className="bg-zinc-950/40 border border-white/5 rounded-2xl p-5 text-center relative overflow-hidden">
                                                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Settlement Transfer</p>
-                                                <p className="text-3xl font-extrabold text-emerald-400 mt-1">₹{parseFloat(s.amount).toFixed(2)}</p>
+                                                <p className="text-3xl font-extrabold text-emerald-400 mt-1">₹{formatIndianCurrency(s.amount)}</p>
                                               </div>
 
                                               {/* Transfer Metadata */}
@@ -2696,7 +2705,7 @@ export default function GroupDetailsPage() {
                         <div className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
                           <div>
                             <p className="text-zinc-500 text-xs uppercase tracking-wider">Total Group Spending</p>
-                            <h3 className="text-3xl font-extrabold text-white mt-1">₹{analytics.totalSpend.toFixed(2)}</h3>
+                            <h3 className="text-3xl font-extrabold text-white mt-1">₹{formatIndianCurrency(analytics.totalSpend)}</h3>
                           </div>
 
                           <div className="flex items-center gap-1.5 text-xs text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full border border-purple-500/20">
@@ -2736,7 +2745,7 @@ export default function GroupDetailsPage() {
                                   <div>
                                     <p className="text-xs font-semibold text-white truncate">{c.name}</p>
                                     <p className="text-[10px] text-zinc-500">
-                                      ₹{c.totalSpend.toFixed(2)} ({c.percentage}%)
+                                      ₹{formatIndianCurrency(c.totalSpend)} ({c.percentage}%)
                                     </p>
                                   </div>
                                 </div>
@@ -2763,8 +2772,8 @@ export default function GroupDetailsPage() {
                                   <div className="flex justify-between items-center text-xs font-semibold">
                                     <span className="text-white">{member.name}</span>
                                     <span className="text-zinc-500 text-[10px]">
-                                      Paid: <span className="text-emerald-400">₹{member.paid.toFixed(0)}</span> | Owed:{" "}
-                                      <span className="text-rose-400">₹{member.owed.toFixed(0)}</span>
+                                      Paid: <span className="text-emerald-400">₹{formatIndianCurrency(member.paid)}</span> | Owed:{" "}
+                                      <span className="text-rose-400">₹{formatIndianCurrency(member.owed)}</span>
                                     </span>
                                   </div>
 
