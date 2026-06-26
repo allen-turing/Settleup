@@ -542,7 +542,7 @@ export default function GroupDetailsPage() {
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
+  const handleInvite = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setInviteError("");
     setInviteSuccess(false);
@@ -993,7 +993,7 @@ export default function GroupDetailsPage() {
     }
   };
 
-  const handleAddExpense = async (e: React.FormEvent) => {
+  const handleAddExpense = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setExpError("");
     setExpLoading(true);
@@ -1053,7 +1053,7 @@ export default function GroupDetailsPage() {
     resetExpenseFormForNextEntry();
   };
 
-  const handleAddSettlement = async (e: React.FormEvent) => {
+  const handleAddSettlement = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setSettleError("");
     setSettleLoading(true);
@@ -1113,7 +1113,7 @@ export default function GroupDetailsPage() {
     }
   };
 
-  const handleEditGroup = async (e: React.FormEvent) => {
+  const handleEditGroup = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setEditGroupError("");
     setEditGroupLoading(true);

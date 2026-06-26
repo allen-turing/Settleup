@@ -159,7 +159,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCreateGroup = async (e: React.FormEvent) => {
+  const handleCreateGroup = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setCreateError("");
     setCreateSuccess(false);
@@ -249,7 +249,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDeleteGroup = async (e: React.FormEvent) => {
+  const handleDeleteGroup = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!deletingGroupId) return;
     setDeleteError("");

@@ -68,7 +68,7 @@ export default function ProfilePage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  async function handleInfoSave(e: React.FormEvent) {
+  async function handleInfoSave(e: React.SyntheticEvent) {
     e.preventDefault();
     setInfoLoading(true);
     setInfoStatus(null);
@@ -92,7 +92,7 @@ export default function ProfilePage() {
     }
   }
 
-  async function handlePasswordSave(e: React.FormEvent) {
+  async function handlePasswordSave(e: React.SyntheticEvent) {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setPwStatus({ type: "error", message: "New passwords do not match." });

@@ -54,7 +54,7 @@ export default function FeatureRequestWorkflow({
     const canGoNextFromStep2 = problem.trim().length >= 20 && expectedOutcome.trim().length >= 10;
     const canSubmit = requesterName.trim() && requesterEmail.trim();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
         if (!canSubmit) {
             setError("Please complete your name and email.");
